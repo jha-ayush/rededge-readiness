@@ -259,6 +259,10 @@ function saveCfg(c){
     const v=(typeof DEFAULTS[k]==="boolean")?(c[k]?"1":"0"):String(c[k]);
     q.set(k,v);
   }
+  // Keep the chosen source in the URL so a shared/bookmarked link reopens in
+  // the same state (e.g. ?source=demo-go for a presentable demo link).
+  const srcEl=document.getElementById("source");
+  if(srcEl && srcEl.value && srcEl.value!=="live") q.set("source",srcEl.value);
   // Persist to URL when running as a real file/page; ignored in the sandboxed
   // about:srcdoc preview where replaceState with a URL is blocked.
   try{ history.replaceState(null,"","?"+q.toString()); }catch(_){ /* in-memory only */ }
@@ -496,11 +500,13 @@ el("applyBtn").onclick=()=>{
 };
 el("resetBtn").onclick=()=>{ cfg={...DEFAULTS}; saveCfg(cfg); fillSettings(); schedule(); tick(); };
 el("refreshBtn").onclick=tick;
-el("source").onchange=()=>{ tick(); schedule(); };
+el("source").onchange=()=>{ saveCfg(cfg); tick(); schedule(); };
 
 /* ---------- boot ---------- */
+const VALID_SOURCES=["live","demo-go","demo-sd","demo-gps","demo-dls","demo-net","demo-down"];
+const wantSource=new URLSearchParams(location.search).get("source");
+el("source").value=VALID_SOURCES.includes(wantSource)?wantSource:"live";
 saveCfg(cfg);
-el("source").value="live";
 fillSettings();
 tick(); schedule();
 </script>
