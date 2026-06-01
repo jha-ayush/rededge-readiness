@@ -382,10 +382,33 @@ def offload(client, dest, only=None):
           % (total_files, total_bytes / 1e6, dest))
 
 
-# ----------------------------------------------------------------------------
-# Local serve + proxy
-# ----------------------------------------------------------------------------
-def make_handler(page_path, client):
+def count_captures(client):
+    """Walk the card and count captures. A capture is one IMG_NNNN set of band
+    images within a folder; bands of the same capture share the IMG_NNNN prefix.
+    Returns counts of capture SET folders, distinct captures, and total bytes."""
+    sets = 0
+    captures = set()
+    total_bytes = 0
+
+    def walk(remote):
+        nonlocal sets, total_bytes
+        listing = client.list_files(remote)
+        for f in listing.get("files", []):
+            name = f.get("name", "")
+            total_bytes += f.get("size", 0)
+            if name.upper().startswith("IMG_") and "_" in name:
+                prefix = name.rsplit("_", 1)[0]   # IMG_0000_3.tif -> IMG_0000
+                captures.add((remote, prefix))
+        for d in listing.get("directories", []):
+            if remote in ("", "/") and d.upper().endswith("SET"):
+                sets += 1
+            walk((remote.rstrip("/") + "/" + d).lstrip("/"))
+
+    walk("/")
+    return {"sets": sets, "captures": len(captures), "bytes": total_bytes}
+
+
+
     page_bytes = b""
     if page_path and os.path.exists(page_path):
         with open(page_path, "rb") as f:
@@ -493,6 +516,7 @@ def build_parser():
     cap.add_argument("--bands", type=int, default=31, help="band bitmask (31=all 5)")
     cap.add_argument("--block", action="store_true")
     cap.add_argument("--preview", action="store_true")
+    sub.add_parser("verify", help="post-flight: confirm captures landed on the card")
     sv = sub.add_parser("serve", help="serve the page + CORS proxy for live use")
     sv.add_argument("--page", default="rededge-readiness.html")
     sv.add_argument("--port", type=int, default=8000)
@@ -547,6 +571,33 @@ def main(argv=None):
     if args.cmd == "offload":
         offload(client, args.dest, args.only)
         return 0
+
+    if args.cmd == "verify":
+        try:
+            info = count_captures(client)
+        except RedEdgeError as e:
+            print("Could not read the card: %s" % e)
+            return 2
+        st = {}
+        try:
+            st = client.status()
+        except RedEdgeError:
+            pass
+        free, total = st.get("sd_gb_free"), st.get("sd_gb_total")
+        c = _color(use_color)
+        ok = info["captures"] > 0
+        head = "%s%s%s" % (c["GO"] if ok else c["CHECK"],
+                           "CAPTURES FOUND" if ok else "NO CAPTURES",
+                           c["_"])
+        print("%s  %d capture%s across %d SET folder%s, %.1f MB"
+              % (head, info["captures"], "" if info["captures"] == 1 else "s",
+                 info["sets"], "" if info["sets"] == 1 else "s",
+                 info["bytes"] / 1e6))
+        if isinstance(free, (int, float)) and isinstance(total, (int, float)):
+            print("  SD: %.1f of %.1f GB free" % (free, total))
+        if not ok:
+            print("  Card has no images. Do not pack up before re-checking.")
+        return 0 if ok else 1
 
     if args.cmd == "capture":
         try:
