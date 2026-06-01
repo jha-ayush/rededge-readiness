@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0c0e">
+<title>RedEdge Readiness</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0c0e; --panel:#13171b; --panel-2:#171c21; --line:#232a31;
+    --text:#e7eef4; --muted:#74828e; --faint:#4a555f;
+    --go:#2fe39a; --check:#f6b13e; --nogo:#ff5a5a; --unknown:#5b6772;
+    --display:"Archivo","Arial Narrow",sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+    --body:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg);color:var(--text);font-family:var(--body)}
+  body{
+    min-height:100vh;
+    padding:max(14px,env(safe-area-inset-top)) 14px max(20px,env(safe-area-inset-bottom));
+    background-image:
+      radial-gradient(900px 500px at 80% -10%, rgba(47,227,154,.05), transparent 60%),
+      linear-gradient(transparent 0, transparent 0);
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:560px;margin:0 auto}
+
+  header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .brand{font-family:var(--display);font-weight:900;letter-spacing:.04em;font-size:15px;text-transform:uppercase}
+  .brand .red{color:var(--nogo)}
+  .brand .edge{color:var(--text)}
+  .link-pill{
+    margin-left:auto;display:inline-flex;align-items:center;gap:7px;
+    font-family:var(--mono);font-size:11px;letter-spacing:.04em;text-transform:uppercase;
+    background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 10px;color:var(--muted);
+  }
+  .link-dot{width:7px;height:7px;border-radius:50%;background:var(--unknown);box-shadow:0 0 0 0 transparent}
+  .link-pill.up .link-dot{background:var(--go);box-shadow:0 0 8px var(--go)}
+  .link-pill.down .link-dot{background:var(--nogo);box-shadow:0 0 8px var(--nogo)}
+  .icon-btn{
+    background:var(--panel);border:1px solid var(--line);color:var(--muted);
+    width:42px;height:42px;border-radius:11px;cursor:pointer;font-size:17px;line-height:1;
+    display:grid;place-items:center;transition:.15s;-webkit-tap-highlight-color:transparent;
+  }
+  .icon-btn:hover{color:var(--text);border-color:var(--faint)}
+
+  /* Status banner */
+  .banner{
+    position:relative;border-radius:16px;padding:22px 20px;overflow:hidden;
+    border:1px solid var(--line);background:var(--panel);
+    transition:border-color .3s, background .3s;
+  }
+  .banner::before{
+    content:"";position:absolute;inset:0;opacity:.10;
+    background:radial-gradient(120% 140% at 0% 0%, var(--state) 0%, transparent 55%);
+    transition:background .3s;
+  }
+  .banner[data-s="GO"]{--state:var(--go);border-color:rgba(47,227,154,.35)}
+  .banner[data-s="CHECK"]{--state:var(--check);border-color:rgba(246,177,62,.35)}
+  .banner[data-s="NO-GO"]{--state:var(--nogo);border-color:rgba(255,90,90,.40)}
+  .banner-row{position:relative;display:flex;align-items:center;gap:16px}
+  .state-word{
+    font-family:var(--display);font-weight:900;font-size:clamp(40px,13vw,64px);
+    line-height:.9;letter-spacing:-.02em;color:var(--state,#fff);
+  }
+  .pulse{
+    width:14px;height:14px;border-radius:50%;background:var(--state,#fff);flex:none;margin-left:auto;
+    box-shadow:0 0 0 0 var(--state);animation:pulse 2.4s ease-out infinite;
+  }
+  @keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--state) 60%,transparent)}70%{box-shadow:0 0 0 16px transparent}100%{box-shadow:0 0 0 0 transparent}}
+  .reason{position:relative;margin-top:12px;color:var(--text);font-size:14px;line-height:1.45}
+  .reason .sub{color:var(--muted);font-size:12.5px;margin-top:3px}
+  .updated{position:relative;margin-top:14px;display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--faint)}
+
+  /* Checks */
+  .checks{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+  .check{
+    display:flex;align-items:center;gap:13px;background:var(--panel);
+    border:1px solid var(--line);border-radius:12px;padding:13px 14px;
+  }
+  .dot{width:9px;height:9px;border-radius:50%;flex:none;background:var(--unknown)}
+  .dot.GO{background:var(--go);box-shadow:0 0 7px var(--go)}
+  .dot.CHECK{background:var(--check);box-shadow:0 0 7px var(--check)}
+  .dot.NO-GO{background:var(--nogo);box-shadow:0 0 7px var(--nogo)}
+  .dot.UNKNOWN{background:var(--unknown)}
+  .check .meta{min-width:0;flex:1}
+  .check .label{font-size:13.5px;font-weight:500}
+  .check .note{font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.35}
+  .check .read{font-family:var(--mono);font-size:13px;color:var(--text);text-align:right;white-space:nowrap}
+  .check .read .u{color:var(--faint);font-size:11px;margin-left:2px}
+  .check[data-s="CHECK"] .read{color:var(--check)}
+  .check[data-s="NO-GO"] .read{color:var(--nogo)}
+  .check[data-s="UNKNOWN"] .read{color:var(--unknown)}
+
+  /* Settings */
+  .panel-box{margin-top:12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .panel-box[hidden]{display:none}
+  .panel-head{padding:11px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;padding:14px}
+  .field{display:flex;flex-direction:column;gap:5px}
+  .field.full{grid-column:1/-1}
+  .field label{font-size:11px;color:var(--muted);letter-spacing:.02em}
+  .field input,.field select{
+    background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:11px 12px;font-family:var(--mono);font-size:16px;width:100%;min-height:46px;
+  }
+  .field input:focus,.field select:focus{outline:none;border-color:var(--faint)}
+  .field.check-row{flex-direction:row;align-items:center;gap:9px}
+  .field.check-row input{width:auto}
+  .controls{padding:0 14px 14px;display:flex;gap:10px}
+  .btn{
+    flex:1;background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+    border-radius:9px;padding:13px;font-family:var(--body);font-weight:600;font-size:14px;
+    cursor:pointer;transition:.15s;-webkit-tap-highlight-color:transparent;min-height:46px;
+  }
+  .btn:hover{border-color:var(--faint)}
+  .btn.primary{background:color-mix(in srgb,var(--go) 16%,var(--panel-2));border-color:rgba(47,227,154,.4);color:var(--go)}
+
+  .topbar{display:flex;gap:8px;margin-bottom:12px;align-items:center}
+  .topbar select{
+    flex:1;background:var(--panel);border:1px solid var(--line);color:var(--muted);
+    border-radius:9px;padding:12px 12px;font-family:var(--mono);font-size:15px;min-height:46px;
+  }
+
+  .foot{margin-top:16px;font-size:11.5px;color:var(--faint);line-height:1.5}
+  .foot b{color:var(--muted);font-weight:600}
+
+  /* Narrow phones */
+  @media (max-width:380px){
+    body{padding-left:11px;padding-right:11px}
+    .brand{font-size:13px}
+    #linkText{display:none}
+    .link-pill{padding:7px 9px}
+    .grid{grid-template-columns:1fr}
+    .state-word{font-size:clamp(34px,15vw,52px)}
+    .check .read{font-size:12.5px}
+  }
+  /* Tablets and up: two-column checks, roomier banner */
+  @media (min-width:720px){
+    .wrap{max-width:760px}
+    .checks{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .banner{padding:28px 26px}
+    .state-word{font-size:clamp(52px,8vw,74px)}
+  }
+  @media (hover:none){
+    .icon-btn:active,.btn:active{border-color:var(--faint)}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><span class="red">RED</span><span class="edge">EDGE</span> READINESS</div>
+    <div class="link-pill" id="linkPill"><span class="link-dot"></span><span id="linkText">no link</span></div>
+    <button class="icon-btn" id="refreshBtn" title="Refresh now">&#x21bb;</button>
+    <button class="icon-btn" id="gearBtn" title="Settings">&#9881;</button>
+  </header>
+
+  <div class="topbar">
+    <select id="source" title="Data source">
+      <option value="live">Live camera</option>
+      <option value="demo-go">Demo: all clear</option>
+      <option value="demo-sd">Demo: low storage</option>
+      <option value="demo-gps">Demo: no GPS fix</option>
+      <option value="demo-dls">Demo: DLS error</option>
+      <option value="demo-net">Demo: camera offline</option>
+      <option value="demo-down">Demo: no link</option>
+    </select>
+  </div>
+
+  <div class="banner" id="banner" data-s="UNKNOWN">
+    <div class="banner-row">
+      <div class="state-word" id="stateWord">...</div>
+      <div class="pulse"></div>
+    </div>
+    <div class="reason" id="reason">Connect to the camera WiFi and choose a source.</div>
+    <div class="updated"><span id="updatedText">awaiting first read</span></div>
+  </div>
+
+  <div class="checks" id="checks"></div>
+
+  <div class="panel-box" id="settings" hidden>
+    <div class="panel-head">Rig expectations</div>
+    <div class="grid">
+      <div class="field full">
+        <label>Camera base URL</label>
+        <input id="cfgUrl" type="text" inputmode="url" spellcheck="false">
+      </div>
+      <div class="field">
+        <label>Min SD free (GB)</label>
+        <input id="cfgSd" type="number" step="0.5" min="0">
+      </div>
+      <div class="field">
+        <label>Min GPS sats</label>
+        <input id="cfgSats" type="number" step="1" min="0">
+      </div>
+      <div class="field">
+        <label>Max pos. error (m)</label>
+        <input id="cfgPacc" type="number" step="0.5" min="0">
+      </div>
+      <div class="field">
+        <label>Min supply (V)</label>
+        <input id="cfgVolts" type="number" step="0.1" min="0">
+      </div>
+      <div class="field">
+        <label>Expected cameras (0 = any)</label>
+        <input id="cfgCams" type="number" step="1" min="0">
+      </div>
+      <div class="field">
+        <label>Poll interval (s)</label>
+        <input id="cfgPoll" type="number" step="1" min="1">
+      </div>
+      <div class="field full">
+        <label>Expected firmware (blank = any)</label>
+        <input id="cfgFw" type="text" spellcheck="false" placeholder="e.g. v7.1.0">
+      </div>
+      <div class="field check-row full">
+        <input id="cfgDls" type="checkbox">
+        <label for="cfgDls" style="font-size:12.5px;color:var(--text)">Require light sensor (DLS) for reflectance work</label>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="btn" id="resetBtn">Reset</button>
+      <button class="btn primary" id="applyBtn">Apply</button>
+    </div>
+  </div>
+
+  <div class="foot">
+    <b>Fail toward caution.</b> Any check that cannot be confirmed reads UNKNOWN and is treated as CHECK; a lost link reads NO-GO. The tool never returns a clear pass on missing data. It reports sensor readiness for good capture, not flight legality.
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ---------- config (URL params, no storage) ---------- */
+const DEFAULTS = {
+  url:"http://192.168.10.254", sd:2, sats:6, pacc:5, volts:4.2,
+  cams:0, poll:3, fw:"", dls:false
+};
+function loadCfg(){
+  const q=new URLSearchParams(location.search), c={...DEFAULTS};
+  for(const k of Object.keys(DEFAULTS)){
+    if(!q.has(k)) continue;
+    const v=q.get(k);
+    if(typeof DEFAULTS[k]==="number") c[k]=parseFloat(v);
+    else if(typeof DEFAULTS[k]==="boolean") c[k]=(v==="1"||v==="true");
+    else c[k]=v;
+  }
+  return c;
+}
+function saveCfg(c){
+  const q=new URLSearchParams();
+  for(const k of Object.keys(DEFAULTS)){
+    const v=(typeof DEFAULTS[k]==="boolean")?(c[k]?"1":"0"):String(c[k]);
+    q.set(k,v);
+  }
+  // Persist to URL when running as a real file/page; ignored in the sandboxed
+  // about:srcdoc preview where replaceState with a URL is blocked.
+  try{ history.replaceState(null,"","?"+q.toString()); }catch(_){ /* in-memory only */ }
+}
+let cfg=loadCfg();
+
+/* ---------- state ranking ---------- */
+const RANK={"GO":1,"CHECK":2,"UNKNOWN":2,"NO-GO":3};
+const worst=arr=>arr.reduce((a,b)=>RANK[b]>RANK[a]?b:a,"GO");
+
+/* ---------- evaluation (pure) ---------- */
+function evaluate(d, c){
+  // d: {ok, status, network, version}  ok=false means no link
+  if(!d.ok){
+    return {overall:"NO-GO", reason:"No link to the camera.",
+      sub:"Confirm you are joined to the camera WiFi and the base URL is correct.",
+      checks:[{label:"Camera link",read:"down",state:"NO-GO",note:"No response from "+c.url}]};
+  }
+  const s=d.status||{}, net=d.network, ver=d.version||{};
+  const out=[];
+
+  // SD card
+  (function(){
+    const st=s.sd_status, free=s.sd_gb_free;
+    let state="GO", note="card present and writable";
+    if(st==="NotPresent"){state="NO-GO";note="no SD card inserted";}
+    else if(st==="Full"){state="NO-GO";note="card full, offload before flight";}
+    else if(s.sd_warn){state="CHECK";note="low-space warning or unrecommended filesystem";}
+    else if(typeof free==="number" && free<c.sd){state="CHECK";note="below "+c.sd+" GB headroom";}
+    else if(st===undefined){state="UNKNOWN";note="card status not reported";}
+    out.push({label:"SD storage",
+      read:(typeof free==="number"?free.toFixed(1):"--"),unit:"GB free",state,note});
+  })();
+
+  // GPS fix
+  (function(){
+    const sats=s.gps_used_sats, pacc=s.p_acc, warn=s.gps_warn, tvalid=s.utc_time_valid;
+    let state="GO", note="usable fix for geotagging";
+    if(sats===undefined){state="UNKNOWN";note="GPS not reported";}
+    else if(warn){state="CHECK";note="receiver reports interference";}
+    else if(sats<c.sats){state="CHECK";note="only "+sats+" sats, want "+c.sats+"+";}
+    else if(typeof pacc==="number" && pacc>c.pacc){state="CHECK";note="position error "+pacc.toFixed(1)+" m";}
+    else if(tvalid===false){state="CHECK";note="time not yet valid";}
+    out.push({label:"GPS fix",
+      read:(sats!==undefined?String(sats):"--"),unit:"sats",state,note});
+  })();
+
+  // position accuracy (separate readout)
+  (function(){
+    const pacc=s.p_acc;
+    let state="GO";
+    if(pacc===undefined){state="UNKNOWN";}
+    else if(pacc>c.pacc){state="CHECK";}
+    out.push({label:"Position accuracy",
+      read:(typeof pacc==="number"?pacc.toFixed(1):"--"),unit:"m (1\u03c3)",state,
+      note:(typeof pacc==="number"?"threshold "+c.pacc+" m":"not reported")});
+  })();
+
+  // Light sensor (DLS)
+  (function(){
+    const dls=s.dls_status;
+    let state="GO", note="irradiance sensor active";
+    if(dls==="Error"){state="NO-GO";note="DLS error, reflectance data unreliable";}
+    else if(dls==="NotPresent"){state=c.dls?"CHECK":"GO";note=c.dls?"no DLS, reflectance calibration limited":"no DLS (not required)";}
+    else if(dls==="Programming"||dls==="Initializing"){state="CHECK";note="DLS warming up, wait";}
+    else if(dls===undefined){state="UNKNOWN";note="DLS state not reported";}
+    out.push({label:"Light sensor",read:(dls||"--"),unit:"",state,note});
+  })();
+
+  // Power
+  (function(){
+    const v=s.bus_volts;
+    let state="GO", note="supply within configured floor";
+    if(v===undefined){state="UNKNOWN";note="voltage not reported";}
+    else if(v<c.volts){state="CHECK";note="below "+c.volts+" V floor, verify pack";}
+    out.push({label:"Supply voltage",
+      read:(typeof v==="number"?v.toFixed(2):"--"),unit:"V",state,note});
+  })();
+
+  // Time source
+  (function(){
+    const ts=s.time_source, valid=s.utc_time_valid;
+    let state="GO", note=(ts?ts+" time source":"time valid");
+    if(valid===false){state="CHECK";note="UTC time not yet valid";}
+    else if(ts===undefined && valid===undefined){state="UNKNOWN";note="time source not reported";}
+    out.push({label:"Time source",read:(ts||(valid?"valid":"--")),unit:"",state,note});
+  })();
+
+  // Network rig
+  (function(){
+    if(!net||!Array.isArray(net.network_map)){
+      out.push({label:"Camera rig",read:"--",unit:"",state:"UNKNOWN",note:"network status unavailable"});
+      return;
+    }
+    const cams=net.network_map.filter(x=>x.device_type==="Camera");
+    const dls=net.network_map.filter(x=>String(x.device_type).startsWith("DLS"));
+    let state="GO", note=cams.length+" camera"+(cams.length===1?"":"s")+(dls.length?", DLS present":"");
+    // per-device storage
+    const cardIssue=cams.some(x=>x.sd_status&&x.sd_status!=="Ok");
+    const fwSet=new Set(cams.map(x=>x.sw_version).filter(Boolean));
+    if(c.cams>0 && cams.length<c.cams){state="NO-GO";note="only "+cams.length+" of "+c.cams+" cameras online";}
+    else if(cardIssue){state="CHECK";note="a networked camera has a card issue";}
+    else if(fwSet.size>1){state="CHECK";note="mixed firmware across cameras";}
+    else if(c.dls && dls.length===0){state="CHECK";note="no DLS on the network";}
+    out.push({label:"Camera rig",read:String(cams.length),unit:"online",state,note});
+  })();
+
+  // Firmware
+  (function(){
+    const v=ver.sw_version;
+    let state="GO", note=(v?"running "+v:"version reported");
+    if(v===undefined){state="UNKNOWN";note="version not reported";}
+    else if(c.fw && v!==c.fw){state="CHECK";note="expected "+c.fw+", running "+v;}
+    out.push({label:"Firmware",read:(v||"--"),unit:"",state,note});
+  })();
+
+  const overall=worst(out.map(x=>x.state==="UNKNOWN"?"CHECK":x.state));
+  let reason, sub;
+  const bad=out.filter(x=>x.state==="NO-GO");
+  const warns=out.filter(x=>x.state==="CHECK"||x.state==="UNKNOWN");
+  if(overall==="GO"){reason="Sensor ready to capture.";sub="All monitored systems within tolerance.";}
+  else if(overall==="NO-GO"){reason=bad.map(x=>x.label+": "+x.note).join("; ")+".";sub="Resolve before flying.";}
+  else{reason=warns.map(x=>x.label).join(", ")+" need attention.";sub=warns.map(x=>x.label+": "+x.note).join("; ")+".";}
+  return {overall, reason, sub, checks:out};
+}
+
+/* ---------- data sources ---------- */
+async function fetchJSON(base, path, signal){
+  const r=await fetch(base.replace(/\/+$/,"")+path,{signal,cache:"no-store"});
+  if(!r.ok) throw new Error(path+" "+r.status);
+  return r.json();
+}
+async function readLive(c){
+  const ctrl=new AbortController();
+  const t=setTimeout(()=>ctrl.abort(),2500);
+  try{
+    const [status,version]=await Promise.all([
+      fetchJSON(c.url,"/status",ctrl.signal),
+      fetchJSON(c.url,"/version",ctrl.signal)
+    ]);
+    let network=null;
+    try{ network=await fetchJSON(c.url,"/networkstatus",ctrl.signal); }catch(_){ }
+    return {ok:true,status,version,network};
+  }catch(e){
+    return {ok:false,error:String(e.message||e)};
+  }finally{ clearTimeout(t); }
+}
+
+/* demo fixtures */
+const DEMO={
+  base:{
+    status:{sd_status:"Ok",sd_gb_free:20.1,sd_warn:false,bus_volts:4.69,
+      gps_used_sats:9,gps_vis_sats:14,gps_warn:false,p_acc:2.4,
+      alt_agl:14.8,dls_status:"Ok",time_source:"GPS",utc_time_valid:true},
+    version:{sw_version:"v7.1.0",serial:"RM02-1839163-SC"},
+    network:{network_map:[
+      {device_type:"Camera",sd_status:"Ok",sw_version:"v7.1.0",bands:[475,560,668,840,717]},
+      {device_type:"DLS 2",sw_version:"v1.2.3"}
+    ]}
+  }
+};
+function demo(kind){
+  const d=JSON.parse(JSON.stringify(DEMO.base)); d.ok=true;
+  if(kind==="demo-sd"){d.status.sd_gb_free=0.7;d.status.sd_warn=true;}
+  if(kind==="demo-gps"){d.status.gps_used_sats=2;d.status.p_acc=18.3;d.status.utc_time_valid=false;d.status.time_source="None";}
+  if(kind==="demo-dls"){d.status.dls_status="Error";}
+  if(kind==="demo-net"){d.network.network_map=[{device_type:"Camera",sd_status:"Ok",sw_version:"v7.1.0"}];}
+  if(kind==="demo-down"){return {ok:false,error:"demo offline"};}
+  return d;
+}
+
+/* ---------- render ---------- */
+const el=id=>document.getElementById(id);
+function render(res){
+  const b=el("banner");
+  b.dataset.s=res.overall;
+  el("stateWord").textContent=res.overall;
+  el("reason").innerHTML=res.reason+(res.sub?'<div class="sub">'+res.sub+'</div>':'');
+  const box=el("checks"); box.innerHTML="";
+  for(const ck of res.checks){
+    const node=document.createElement("div");
+    node.className="check"; node.dataset.s=ck.state;
+    node.innerHTML=
+      '<span class="dot '+ck.state+'"></span>'+
+      '<div class="meta"><div class="label">'+ck.label+'</div>'+
+      (ck.note?'<div class="note">'+ck.note+'</div>':'')+'</div>'+
+      '<div class="read">'+ck.read+(ck.unit?' <span class="u">'+ck.unit+'</span>':'')+'</div>';
+    box.appendChild(node);
+  }
+}
+function setLink(up){
+  const p=el("linkPill");
+  p.classList.toggle("up",up); p.classList.toggle("down",!up);
+  el("linkText").textContent=up?"linked":"no link";
+}
+function stamp(){
+  const t=new Date();
+  el("updatedText").textContent="updated "+t.toLocaleTimeString([], {hour12:false});
+}
+
+/* ---------- loop ---------- */
+let timer=null, busy=false;
+async function tick(){
+  if(busy) return; busy=true;
+  const src=el("source").value;
+  let d;
+  if(src==="live"){ d=await readLive(cfg); }
+  else { d=demo(src); }
+  setLink(!!d.ok);
+  render(evaluate(d,cfg));
+  stamp(); busy=false;
+}
+function schedule(){
+  if(timer) clearInterval(timer);
+  const ms=Math.max(1,cfg.poll)*1000;
+  timer=setInterval(tick,ms);
+}
+
+/* ---------- settings wiring ---------- */
+function fillSettings(){
+  el("cfgUrl").value=cfg.url; el("cfgSd").value=cfg.sd; el("cfgSats").value=cfg.sats;
+  el("cfgPacc").value=cfg.pacc; el("cfgVolts").value=cfg.volts; el("cfgCams").value=cfg.cams;
+  el("cfgPoll").value=cfg.poll; el("cfgFw").value=cfg.fw; el("cfgDls").checked=cfg.dls;
+}
+el("gearBtn").onclick=()=>{ const s=el("settings"); s.hidden=!s.hidden; if(!s.hidden) fillSettings(); };
+el("applyBtn").onclick=()=>{
+  cfg={
+    url:el("cfgUrl").value.trim()||DEFAULTS.url,
+    sd:parseFloat(el("cfgSd").value)||0, sats:parseInt(el("cfgSats").value)||0,
+    pacc:parseFloat(el("cfgPacc").value)||0, volts:parseFloat(el("cfgVolts").value)||0,
+    cams:parseInt(el("cfgCams").value)||0, poll:parseFloat(el("cfgPoll").value)||3,
+    fw:el("cfgFw").value.trim(), dls:el("cfgDls").checked
+  };
+  saveCfg(cfg); schedule(); tick(); el("settings").hidden=true;
+};
+el("resetBtn").onclick=()=>{ cfg={...DEFAULTS}; saveCfg(cfg); fillSettings(); schedule(); tick(); };
+el("refreshBtn").onclick=tick;
+el("source").onchange=()=>{ tick(); schedule(); };
+
+/* ---------- boot ---------- */
+saveCfg(cfg);
+el("source").value="live";
+fillSettings();
+tick(); schedule();
+</script>
+</body>
+</html>
