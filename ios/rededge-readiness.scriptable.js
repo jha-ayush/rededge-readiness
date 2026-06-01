@@ -37,6 +37,7 @@ const DEFAULTS = {
   cams: 0,        // expected cameras, 0 = any
   fw: "",         // expected firmware, "" = any
   dls: false,     // require light sensor for reflectance work
+  theme: "auto",  // "auto" follows the phone, or "dark" / "light"
 };
 
 function settingsPath() {
@@ -71,11 +72,13 @@ async function editSettings(s) {
   a.addTextField("Expected cameras (0 = any)", String(s.cams));
   a.addTextField("Expected firmware", s.fw);
   a.addTextField("Require DLS (yes/no)", s.dls ? "yes" : "no");
+  a.addTextField("Theme (auto/dark/light)", s.theme || "auto");
   a.addAction("Save");
   a.addCancelAction("Cancel");
   const idx = await a.presentAlert();
   if (idx === -1) return null;
   const num = (v, d) => { const n = parseFloat(v); return isNaN(n) ? d : n; };
+  const th = (a.textFieldValue(8) || "auto").trim().toLowerCase();
   const ns = {
     cameraUrl: (a.textFieldValue(0) || DEFAULTS.cameraUrl).trim(),
     timeout: s.timeout,
@@ -86,6 +89,7 @@ async function editSettings(s) {
     cams: Math.round(num(a.textFieldValue(5), DEFAULTS.cams)),
     fw: (a.textFieldValue(6) || "").trim(),
     dls: /^y/i.test((a.textFieldValue(7) || "").trim()),
+    theme: (th === "dark" || th === "light") ? th : "auto",
   };
   saveSettings(ns);
   return ns;
@@ -296,21 +300,43 @@ async function runPostflight(s) {
 // ----------------------------------------------------------------------------
 // Rendering
 // ----------------------------------------------------------------------------
-const COLORS = { "GO": "#2fe39a", "CHECK": "#f6b13e", "NO-GO": "#ff5a5a", "UNKNOWN": "#5b6772" };
+const PALETTES = {
+  dark: {
+    bg: "#0a0c0e", panel: "#13171b", line: "#232a31", text: "#e7eef4",
+    muted: "#74828e", faint: "#4a555f", tagbg: "rgba(255,255,255,.05)",
+    GO: "#2fe39a", CHECK: "#f6b13e", "NO-GO": "#ff5a5a", UNKNOWN: "#5b6772",
+  },
+  light: {
+    bg: "#eef2f6", panel: "#ffffff", line: "#dde4ea", text: "#16212c",
+    muted: "#566370", faint: "#97a4af", tagbg: "rgba(20,40,60,.05)",
+    GO: "#0e9b69", CHECK: "#bd7a10", "NO-GO": "#d62f2f", UNKNOWN: "#8a97a3",
+  },
+};
 
-function buildHTML(res) {
+function resolveTheme(s) {
+  const t = (s && s.theme) || "auto";
+  if (t === "dark" || t === "light") return t;
+  try { return Device.isUsingDarkAppearance() ? "dark" : "light"; }
+  catch (e) { return "dark"; }
+}
+
+function buildHTML(res, theme) {
+  const p = PALETTES[theme] || PALETTES.dark;
   const stamp = new Date().toLocaleTimeString([], { hour12: false });
-  const rows = res.checks.map((ck) =>
-    `<div class="check" data-s="${ck.state}">
-       <span class="dot" style="--c:${COLORS[ck.state] || COLORS.UNKNOWN}"></span>
-       <div class="meta"><div class="label">${ck.label}</div><div class="note">${ck.note}</div></div>
+  const rows = res.checks.map((ck) => {
+    const sc = p[ck.state] || p.UNKNOWN;
+    return `<div class="check">
+       <span class="dot" style="--c:${sc}"></span>
+       <div class="meta"><div class="label">${ck.label} <span class="tag" style="color:${sc}">${ck.state}</span></div><div class="note">${ck.note}</div></div>
        <div class="read">${ck.read}${ck.unit ? ` <span class="u">${ck.unit}</span>` : ""}</div>
-     </div>`).join("");
-  const c = COLORS[res.overall] || "#fff";
+     </div>`;
+  }).join("");
+  const c = p[res.overall] || p.text;
   return `<!DOCTYPE html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <style>
-  :root{--bg:#0a0c0e;--panel:#13171b;--line:#232a31;--text:#e7eef4;--muted:#74828e;--faint:#4a555f;
+  :root{--bg:${p.bg};--panel:${p.panel};--line:${p.line};--text:${p.text};--muted:${p.muted};--faint:${p.faint};
+    --tagbg:${p.tagbg};
     --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
     --body:-apple-system,system-ui,sans-serif;--state:${c}}
   *{box-sizing:border-box;margin:0;padding:0}
@@ -319,7 +345,7 @@ function buildHTML(res) {
   .wrap{max-width:760px;margin:0 auto}
   .head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
   .brand{font-weight:800;letter-spacing:.04em;font-size:14px;text-transform:uppercase}
-  .brand .r{color:#ff5a5a}
+  .brand .r{color:${p["NO-GO"]}}
   .stamp{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--faint)}
   .banner{position:relative;border-radius:16px;padding:24px 20px;border:1px solid var(--state);
     background:var(--panel);overflow:hidden}
@@ -333,8 +359,9 @@ function buildHTML(res) {
   .check{display:flex;align-items:center;gap:13px;background:var(--panel);
     border:1px solid var(--line);border-radius:12px;padding:14px}
   .dot{width:9px;height:9px;border-radius:50%;flex:none;background:var(--c);box-shadow:0 0 7px var(--c)}
-  .meta{min-width:0;flex:1}.label{font-size:14px;font-weight:500}
-  .note{font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.35}
+  .meta{min-width:0;flex:1}.label{font-size:14px;font-weight:500;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .tag{font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.05em;padding:2px 6px;border-radius:5px;background:var(--tagbg)}
+  .note{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.35}
   .read{font-family:var(--mono);font-size:14px;text-align:right;white-space:nowrap}
   .read .u{color:var(--faint);font-size:11px}
   .foot{margin-top:16px;font-size:11.5px;color:var(--faint);line-height:1.5}
@@ -348,21 +375,22 @@ function buildHTML(res) {
 </div></body></html>`;
 }
 
-function buildWidget(res) {
+function buildWidget(res, theme) {
+  const p = PALETTES[theme] || PALETTES.dark;
   const w = new ListWidget();
-  const c = new Color(COLORS[res.overall] || "#999999");
-  w.backgroundColor = new Color("#0a0c0e");
+  const c = new Color(p[res.overall] || p.UNKNOWN);
+  w.backgroundColor = new Color(p.bg);
   const bar = w.addStack(); bar.layoutHorizontally();
   const tag = bar.addText("REDEDGE"); tag.font = Font.semiboldSystemFont(9);
-  tag.textColor = new Color("#74828e"); bar.addSpacer();
+  tag.textColor = new Color(p.muted); bar.addSpacer();
   w.addSpacer(6);
   const big = w.addText(res.overall); big.font = Font.heavySystemFont(34); big.textColor = c;
   w.addSpacer(2);
   const r = w.addText(res.reason); r.font = Font.systemFont(11);
-  r.textColor = new Color("#e7eef4"); r.lineLimit = 3;
+  r.textColor = new Color(p.text); r.lineLimit = 3;
   w.addSpacer();
   const t = w.addText("checked " + new Date().toLocaleTimeString([], { hour12: false }));
-  t.font = Font.regularSystemFont(9); t.textColor = new Color("#4a555f");
+  t.font = Font.regularSystemFont(9); t.textColor = new Color(p.faint);
   return w;
 }
 
@@ -375,7 +403,7 @@ async function main() {
   // Widget: render compact state, no menu.
   if (config.runsInWidget) {
     const res = evaluate(await snapshot(s, DEMO), s);
-    Script.setWidget(buildWidget(res));
+    Script.setWidget(buildWidget(res, resolveTheme(s)));
     Script.complete();
     return;
   }
@@ -413,7 +441,7 @@ async function main() {
 
   if (!result) result = evaluate(await snapshot(s, demoKind), s);
   const wv = new WebView();
-  await wv.loadHTML(buildHTML(result));
+  await wv.loadHTML(buildHTML(result, resolveTheme(s)));
   await wv.present(true);
   Script.complete();
 }
