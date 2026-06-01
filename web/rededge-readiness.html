@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -10,77 +10,110 @@
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#0a0c0e; --panel:#13171b; --panel-2:#171c21; --line:#232a31;
-    --text:#e7eef4; --muted:#74828e; --faint:#4a555f;
-    --go:#2fe39a; --check:#f6b13e; --nogo:#ff5a5a; --unknown:#5b6772;
     --display:"Archivo","Arial Narrow",sans-serif;
     --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
     --body:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+    --ease:.24s cubic-bezier(.4,0,.2,1);
+  }
+  :root[data-theme="dark"]{
+    --bg:#0a0c0e; --panel:#13171b; --panel-2:#171c21; --line:#232a31;
+    --text:#e7eef4; --muted:#74828e; --faint:#4a555f;
+    --go:#2fe39a; --check:#f6b13e; --nogo:#ff5a5a; --unknown:#5b6772;
+    --glow:.11; --tagbg:rgba(255,255,255,.05); --shadow:none;
+    --topglow:rgba(47,227,154,.05);
+  }
+  :root[data-theme="light"]{
+    --bg:#eef2f6; --panel:#ffffff; --panel-2:#f3f6f9; --line:#dde4ea;
+    --text:#16212c; --muted:#566370; --faint:#97a4af;
+    --go:#0e9b69; --check:#bd7a10; --nogo:#d62f2f; --unknown:#8a97a3;
+    --glow:.13; --tagbg:rgba(20,40,60,.05); --shadow:0 1px 3px rgba(20,40,60,.07);
+    --topglow:rgba(14,155,105,.07);
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{background:var(--bg);color:var(--text);font-family:var(--body)}
   body{
     min-height:100vh;
     padding:max(14px,env(safe-area-inset-top)) 14px max(20px,env(safe-area-inset-bottom));
-    background-image:
-      radial-gradient(900px 500px at 80% -10%, rgba(47,227,154,.05), transparent 60%),
-      linear-gradient(transparent 0, transparent 0);
+    background-image:radial-gradient(900px 520px at 82% -12%, var(--topglow), transparent 60%);
     -webkit-font-smoothing:antialiased;
+    transition:background-color var(--ease), color var(--ease);
   }
-  .wrap{max-width:560px;margin:0 auto}
+  .wrap{max-width:560px;margin:0 auto;animation:rise .5s var(--ease) both}
+  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 
-  header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
-  .brand{font-family:var(--display);font-weight:900;letter-spacing:.04em;font-size:15px;text-transform:uppercase}
+  /* Header */
+  header{display:flex;align-items:flex-start;gap:12px;margin-bottom:14px}
+  .brand{font-family:var(--display);font-weight:900;letter-spacing:.03em;font-size:16px;text-transform:uppercase;line-height:1}
   .brand .red{color:var(--nogo)}
-  .brand .edge{color:var(--text)}
+  .brand .lite{color:var(--muted);font-weight:700}
+  .tagline{margin-top:5px;font-size:12px;color:var(--muted);line-height:1.35;max-width:30ch}
+  .actions{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
   .link-pill{
-    margin-left:auto;display:inline-flex;align-items:center;gap:7px;
+    display:inline-flex;align-items:center;gap:7px;
     font-family:var(--mono);font-size:11px;letter-spacing:.04em;text-transform:uppercase;
-    background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 10px;color:var(--muted);
+    background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 10px;color:var(--muted);
+    box-shadow:var(--shadow);transition:background-color var(--ease),border-color var(--ease),color var(--ease);
   }
-  .link-dot{width:7px;height:7px;border-radius:50%;background:var(--unknown);box-shadow:0 0 0 0 transparent}
+  .link-dot{width:7px;height:7px;border-radius:50%;background:var(--unknown);transition:background var(--ease),box-shadow var(--ease)}
   .link-pill.up .link-dot{background:var(--go);box-shadow:0 0 8px var(--go)}
   .link-pill.down .link-dot{background:var(--nogo);box-shadow:0 0 8px var(--nogo)}
   .icon-btn{
     background:var(--panel);border:1px solid var(--line);color:var(--muted);
     width:42px;height:42px;border-radius:11px;cursor:pointer;font-size:17px;line-height:1;
-    display:grid;place-items:center;transition:.15s;-webkit-tap-highlight-color:transparent;
+    display:grid;place-items:center;box-shadow:var(--shadow);
+    transition:background-color var(--ease),border-color var(--ease),color var(--ease),transform .1s;
+    -webkit-tap-highlight-color:transparent;
   }
   .icon-btn:hover{color:var(--text);border-color:var(--faint)}
+  .icon-btn:active{transform:scale(.94)}
+
+  /* Source selector */
+  .topbar{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .src-label{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+  .topbar select{
+    flex:1;background:var(--panel);border:1px solid var(--line);color:var(--text);
+    border-radius:10px;padding:12px;font-family:var(--mono);font-size:15px;min-height:46px;
+    box-shadow:var(--shadow);transition:background-color var(--ease),border-color var(--ease),color var(--ease);
+  }
+  .topbar select:focus{outline:none;border-color:var(--faint)}
 
   /* Status banner */
   .banner{
     position:relative;border-radius:16px;padding:22px 20px;overflow:hidden;
-    border:1px solid var(--line);background:var(--panel);
-    transition:border-color .3s, background .3s;
+    border:1px solid var(--line);background:var(--panel);box-shadow:var(--shadow);
+    transition:border-color var(--ease),background-color var(--ease);
   }
   .banner::before{
-    content:"";position:absolute;inset:0;opacity:.10;
-    background:radial-gradient(120% 140% at 0% 0%, var(--state) 0%, transparent 55%);
-    transition:background .3s;
+    content:"";position:absolute;inset:0;opacity:var(--glow);pointer-events:none;
+    background:radial-gradient(120% 150% at 0% 0%, var(--state) 0%, transparent 55%);
+    transition:background var(--ease),opacity var(--ease);
   }
-  .banner[data-s="GO"]{--state:var(--go);border-color:rgba(47,227,154,.35)}
-  .banner[data-s="CHECK"]{--state:var(--check);border-color:rgba(246,177,62,.35)}
-  .banner[data-s="NO-GO"]{--state:var(--nogo);border-color:rgba(255,90,90,.40)}
+  .banner[data-s="GO"]{--state:var(--go);border-color:color-mix(in srgb,var(--go) 40%,var(--line))}
+  .banner[data-s="CHECK"]{--state:var(--check);border-color:color-mix(in srgb,var(--check) 40%,var(--line))}
+  .banner[data-s="NO-GO"]{--state:var(--nogo);border-color:color-mix(in srgb,var(--nogo) 48%,var(--line))}
+  .banner[data-s="UNKNOWN"]{--state:var(--unknown)}
   .banner-row{position:relative;display:flex;align-items:center;gap:16px}
-  .state-word{
-    font-family:var(--display);font-weight:900;font-size:clamp(40px,13vw,64px);
-    line-height:.9;letter-spacing:-.02em;color:var(--state,#fff);
-  }
-  .pulse{
-    width:14px;height:14px;border-radius:50%;background:var(--state,#fff);flex:none;margin-left:auto;
-    box-shadow:0 0 0 0 var(--state);animation:pulse 2.4s ease-out infinite;
-  }
-  @keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--state) 60%,transparent)}70%{box-shadow:0 0 0 16px transparent}100%{box-shadow:0 0 0 0 transparent}}
+  .state-word{font-family:var(--display);font-weight:900;font-size:clamp(40px,13vw,64px);line-height:.9;letter-spacing:-.02em;color:var(--state,var(--text));transition:color var(--ease)}
+  .pulse{width:14px;height:14px;border-radius:50%;background:var(--state,var(--text));flex:none;margin-left:auto;box-shadow:0 0 0 0 var(--state);animation:pulse 2.4s ease-out infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--state) 55%,transparent)}70%{box-shadow:0 0 0 15px transparent}100%{box-shadow:0 0 0 0 transparent}}
   .reason{position:relative;margin-top:12px;color:var(--text);font-size:14px;line-height:1.45}
   .reason .sub{color:var(--muted);font-size:12.5px;margin-top:3px}
   .updated{position:relative;margin-top:14px;display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--faint)}
 
+  /* Legend */
+  .legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin:13px 2px 2px;font-size:11.5px;color:var(--muted)}
+  .legend .lg{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .legend i.GO{background:var(--go)} .legend i.CHECK{background:var(--check)} .legend i.NO-GO{background:var(--nogo)}
+  .legend b{color:var(--text);font-weight:600}
+
   /* Checks */
-  .checks{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+  .section-label{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin:16px 2px 8px}
+  .checks{display:flex;flex-direction:column;gap:8px}
   .check{
     display:flex;align-items:center;gap:13px;background:var(--panel);
-    border:1px solid var(--line);border-radius:12px;padding:13px 14px;
+    border:1px solid var(--line);border-radius:12px;padding:13px 14px;box-shadow:var(--shadow);
+    transition:border-color var(--ease),background-color var(--ease);
   }
   .dot{width:9px;height:9px;border-radius:50%;flex:none;background:var(--unknown)}
   .dot.GO{background:var(--go);box-shadow:0 0 7px var(--go)}
@@ -88,8 +121,10 @@
   .dot.NO-GO{background:var(--nogo);box-shadow:0 0 7px var(--nogo)}
   .dot.UNKNOWN{background:var(--unknown)}
   .check .meta{min-width:0;flex:1}
-  .check .label{font-size:13.5px;font-weight:500}
-  .check .note{font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.35}
+  .check .label{font-size:13.5px;font-weight:500;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .tag{font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.05em;padding:2px 6px;border-radius:5px;background:var(--tagbg);color:var(--unknown)}
+  .tag.GO{color:var(--go)} .tag.CHECK{color:var(--check)} .tag.NO-GO{color:var(--nogo)} .tag.UNKNOWN{color:var(--unknown)}
+  .check .note{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.35}
   .check .read{font-family:var(--mono);font-size:13px;color:var(--text);text-align:right;white-space:nowrap}
   .check .read .u{color:var(--faint);font-size:11px;margin-left:2px}
   .check[data-s="CHECK"] .read{color:var(--check)}
@@ -97,7 +132,7 @@
   .check[data-s="UNKNOWN"] .read{color:var(--unknown)}
 
   /* Settings */
-  .panel-box{margin-top:12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .panel-box{margin-top:12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
   .panel-box[hidden]{display:none}
   .panel-head{padding:11px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)}
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;padding:14px}
@@ -110,21 +145,15 @@
   }
   .field input:focus,.field select:focus{outline:none;border-color:var(--faint)}
   .field.check-row{flex-direction:row;align-items:center;gap:9px}
-  .field.check-row input{width:auto}
+  .field.check-row input{width:auto;min-height:auto}
   .controls{padding:0 14px 14px;display:flex;gap:10px}
   .btn{
     flex:1;background:var(--panel-2);border:1px solid var(--line);color:var(--text);
-    border-radius:9px;padding:13px;font-family:var(--body);font-weight:600;font-size:14px;
-    cursor:pointer;transition:.15s;-webkit-tap-highlight-color:transparent;min-height:46px;
+    border-radius:9px;padding:13px;font-family:var(--body);font-weight:600;font-size:14px;cursor:pointer;
+    transition:border-color var(--ease),background-color var(--ease);-webkit-tap-highlight-color:transparent;min-height:46px;
   }
   .btn:hover{border-color:var(--faint)}
-  .btn.primary{background:color-mix(in srgb,var(--go) 16%,var(--panel-2));border-color:rgba(47,227,154,.4);color:var(--go)}
-
-  .topbar{display:flex;gap:8px;margin-bottom:12px;align-items:center}
-  .topbar select{
-    flex:1;background:var(--panel);border:1px solid var(--line);color:var(--muted);
-    border-radius:9px;padding:12px 12px;font-family:var(--mono);font-size:15px;min-height:46px;
-  }
+  .btn.primary{background:color-mix(in srgb,var(--go) 16%,var(--panel-2));border-color:color-mix(in srgb,var(--go) 40%,var(--line));color:var(--go)}
 
   .foot{margin-top:16px;font-size:11.5px;color:var(--faint);line-height:1.5}
   .foot b{color:var(--muted);font-weight:600}
@@ -132,35 +161,43 @@
   /* Narrow phones */
   @media (max-width:380px){
     body{padding-left:11px;padding-right:11px}
-    .brand{font-size:13px}
+    .brand{font-size:14px}
     #linkText{display:none}
     .link-pill{padding:7px 9px}
     .grid{grid-template-columns:1fr}
     .state-word{font-size:clamp(34px,15vw,52px)}
-    .check .read{font-size:12.5px}
+    .tagline{max-width:24ch}
   }
-  /* Tablets and up: two-column checks, roomier banner */
+  /* Tablets and up */
   @media (min-width:720px){
     .wrap{max-width:760px}
     .checks{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .banner{padding:28px 26px}
     .state-word{font-size:clamp(52px,8vw,74px)}
   }
-  @media (hover:none){
-    .icon-btn:active,.btn:active{border-color:var(--faint)}
+  @media (prefers-reduced-motion:reduce){
+    .wrap{animation:none}
+    .pulse{animation:none}
   }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <div class="brand"><span class="red">RED</span><span class="edge">EDGE</span> READINESS</div>
-    <div class="link-pill" id="linkPill"><span class="link-dot"></span><span id="linkText">no link</span></div>
-    <button class="icon-btn" id="refreshBtn" title="Refresh now">&#x21bb;</button>
-    <button class="icon-btn" id="gearBtn" title="Settings">&#9881;</button>
+    <div>
+      <div class="brand"><span class="red">RED</span>EDGE <span class="lite">READINESS</span></div>
+      <div class="tagline">Pre-flight sensor check for MicaSense RedEdge and Altum. One glance: is the sensor ready to capture good data, right now.</div>
+    </div>
+    <div class="actions">
+      <div class="link-pill" id="linkPill"><span class="link-dot"></span><span id="linkText">no link</span></div>
+      <button class="icon-btn" id="themeBtn" title="Toggle light / dark" aria-label="Toggle light or dark theme">&#9728;</button>
+      <button class="icon-btn" id="refreshBtn" title="Refresh now" aria-label="Refresh now">&#x21bb;</button>
+      <button class="icon-btn" id="gearBtn" title="Settings" aria-label="Open settings">&#9881;</button>
+    </div>
   </header>
 
   <div class="topbar">
+    <label class="src-label" for="source">Source</label>
     <select id="source" title="Data source">
       <option value="live">Live camera</option>
       <option value="demo-go">Demo: all clear</option>
@@ -181,6 +218,13 @@
     <div class="updated"><span id="updatedText">awaiting first read</span></div>
   </div>
 
+  <div class="legend">
+    <span class="lg"><i class="GO"></i><b>GO</b>&nbsp;ready to capture</span>
+    <span class="lg"><i class="CHECK"></i><b>CHECK</b>&nbsp;needs attention</span>
+    <span class="lg"><i class="NO-GO"></i><b>NO-GO</b>&nbsp;do not fly</span>
+  </div>
+
+  <div class="section-label">System checks</div>
   <div class="checks" id="checks"></div>
 
   <div class="panel-box" id="settings" hidden>
@@ -263,6 +307,9 @@ function saveCfg(c){
   // the same state (e.g. ?source=demo-go for a presentable demo link).
   const srcEl=document.getElementById("source");
   if(srcEl && srcEl.value && srcEl.value!=="live") q.set("source",srcEl.value);
+  // Keep the chosen theme so a shared link matches what you intended.
+  const th=document.documentElement.getAttribute("data-theme");
+  if(th) q.set("theme",th);
   // Persist to URL when running as a real file/page; ignored in the sandboxed
   // about:srcdoc preview where replaceState with a URL is blocked.
   try{ history.replaceState(null,"","?"+q.toString()); }catch(_){ /* in-memory only */ }
@@ -447,7 +494,8 @@ function render(res){
     node.className="check"; node.dataset.s=ck.state;
     node.innerHTML=
       '<span class="dot '+ck.state+'"></span>'+
-      '<div class="meta"><div class="label">'+ck.label+'</div>'+
+      '<div class="meta"><div class="label">'+ck.label+
+      ' <span class="tag '+ck.state+'">'+ck.state+'</span></div>'+
       (ck.note?'<div class="note">'+ck.note+'</div>':'')+'</div>'+
       '<div class="read">'+ck.read+(ck.unit?' <span class="u">'+ck.unit+'</span>':'')+'</div>';
     box.appendChild(node);
@@ -461,6 +509,17 @@ function setLink(up){
 function stamp(){
   const t=new Date();
   el("updatedText").textContent="updated "+t.toLocaleTimeString([], {hour12:false});
+}
+
+/* ---------- theme ---------- */
+function currentTheme(){ return document.documentElement.getAttribute("data-theme")||"dark"; }
+function applyTheme(t){
+  document.documentElement.setAttribute("data-theme", t);
+  const btn=el("themeBtn");
+  btn.innerHTML = (t==="dark") ? "&#9728;" : "&#9790;";   // sun in dark, moon in light
+  btn.title = (t==="dark") ? "Switch to light" : "Switch to dark";
+  const meta=document.querySelector('meta[name="theme-color"]');
+  if(meta) meta.setAttribute("content", t==="dark" ? "#0a0c0e" : "#eef2f6");
 }
 
 /* ---------- loop ---------- */
@@ -501,10 +560,15 @@ el("applyBtn").onclick=()=>{
 el("resetBtn").onclick=()=>{ cfg={...DEFAULTS}; saveCfg(cfg); fillSettings(); schedule(); tick(); };
 el("refreshBtn").onclick=tick;
 el("source").onchange=()=>{ saveCfg(cfg); tick(); schedule(); };
+el("themeBtn").onclick=()=>{ applyTheme(currentTheme()==="dark"?"light":"dark"); saveCfg(cfg); };
 
 /* ---------- boot ---------- */
 const VALID_SOURCES=["live","demo-go","demo-sd","demo-gps","demo-dls","demo-net","demo-down"];
-const wantSource=new URLSearchParams(location.search).get("source");
+const params=new URLSearchParams(location.search);
+const wantTheme=params.get("theme");
+const sysLight=window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
+applyTheme((wantTheme==="light"||wantTheme==="dark") ? wantTheme : (sysLight?"light":"dark"));
+const wantSource=params.get("source");
 el("source").value=VALID_SOURCES.includes(wantSource)?wantSource:"live";
 saveCfg(cfg);
 fillSettings();
