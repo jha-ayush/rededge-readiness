@@ -15,24 +15,81 @@
 //   4. Run from the app, the Share Sheet, a Home Screen icon, or add it as a
 //      Home Screen widget for a glanceable state.
 //
-// Re-run to refresh. Toggle DEMO below to review states without a camera.
+// Re-run to refresh. Open this script inside the Scriptable app to get a menu
+// with Check now, Settings (edit thresholds and camera URL on the device), and
+// demo states. A Home Screen icon or widget skips the menu and checks directly.
 
 // ----------------------------------------------------------------------------
 // Config
 // ----------------------------------------------------------------------------
-const CAMERA_URL = "http://192.168.10.254"; // WiFi default; Ethernet 192.168.1.83
-const TIMEOUT = 2.5;                         // seconds per request
-const DEMO = "";                             // "" live, or: go|sd|gps|dls|net|down
+// Defaults. Editable on the device: open this script inside the Scriptable app
+// and choose Settings. Field use (Home Screen icon or widget) skips the menu
+// and runs the check directly. Settings persist in a local file.
+const DEMO = "";   // top-level demo for the widget: "" live, or go|sd|gps|dls|net|down
 
-const CFG = {
-  sd: 2,        // min SD free (GB)
-  sats: 6,      // min GPS sats
-  pacc: 5,      // max position error (m)
-  volts: 4.2,   // min supply (V); placeholder, verify against your power setup
-  cams: 0,      // expected cameras, 0 = any
-  fw: "",       // expected firmware, "" = any
-  dls: false,   // require light sensor for reflectance work
+const DEFAULTS = {
+  cameraUrl: "http://192.168.10.254", // WiFi default; Ethernet 192.168.1.83
+  timeout: 2.5,   // seconds per request
+  sd: 2,          // min SD free (GB)
+  sats: 6,        // min GPS sats
+  pacc: 5,        // max position error (m)
+  volts: 4.2,     // min supply (V); placeholder, verify against your power setup
+  cams: 0,        // expected cameras, 0 = any
+  fw: "",         // expected firmware, "" = any
+  dls: false,     // require light sensor for reflectance work
 };
+
+function settingsPath() {
+  const fm = FileManager.local();
+  return fm.joinPath(fm.documentsDirectory(), "rededge-settings.json");
+}
+
+function loadSettings() {
+  const s = { ...DEFAULTS };
+  try {
+    const fm = FileManager.local();
+    const p = settingsPath();
+    if (fm.fileExists(p)) Object.assign(s, JSON.parse(fm.readString(p)));
+  } catch (e) { /* fall back to defaults */ }
+  return s;
+}
+
+function saveSettings(s) {
+  try { FileManager.local().writeString(settingsPath(), JSON.stringify(s)); }
+  catch (e) { /* non-fatal */ }
+}
+
+async function editSettings(s) {
+  const a = new Alert();
+  a.title = "RedEdge Settings";
+  a.message = "Blank fields fall back to the default.";
+  a.addTextField("Camera URL", s.cameraUrl);
+  a.addTextField("Min SD free (GB)", String(s.sd));
+  a.addTextField("Min GPS sats", String(s.sats));
+  a.addTextField("Max position error (m)", String(s.pacc));
+  a.addTextField("Min supply (V)", String(s.volts));
+  a.addTextField("Expected cameras (0 = any)", String(s.cams));
+  a.addTextField("Expected firmware", s.fw);
+  a.addTextField("Require DLS (yes/no)", s.dls ? "yes" : "no");
+  a.addAction("Save");
+  a.addCancelAction("Cancel");
+  const idx = await a.presentAlert();
+  if (idx === -1) return null;
+  const num = (v, d) => { const n = parseFloat(v); return isNaN(n) ? d : n; };
+  const ns = {
+    cameraUrl: (a.textFieldValue(0) || DEFAULTS.cameraUrl).trim(),
+    timeout: s.timeout,
+    sd: num(a.textFieldValue(1), DEFAULTS.sd),
+    sats: Math.round(num(a.textFieldValue(2), DEFAULTS.sats)),
+    pacc: num(a.textFieldValue(3), DEFAULTS.pacc),
+    volts: num(a.textFieldValue(4), DEFAULTS.volts),
+    cams: Math.round(num(a.textFieldValue(5), DEFAULTS.cams)),
+    fw: (a.textFieldValue(6) || "").trim(),
+    dls: /^y/i.test((a.textFieldValue(7) || "").trim()),
+  };
+  saveSettings(ns);
+  return ns;
+}
 
 // ----------------------------------------------------------------------------
 // Readiness evaluation (parity with the web and Python tools)
@@ -46,7 +103,7 @@ function evaluate(d, c) {
       overall: "NO-GO",
       reason: "No link to the camera.",
       sub: "Confirm you are on the camera WiFi, that Local Network access is allowed, and the base URL is correct.",
-      checks: [{ label: "Camera link", read: "down", state: "NO-GO", note: "no response from " + CAMERA_URL }],
+      checks: [{ label: "Camera link", read: "down", state: "NO-GO", note: "no response from " + (c.cameraUrl || "camera") }],
     };
   }
   const s = d.status || {}, net = d.network, ver = d.version || {};
@@ -155,9 +212,9 @@ function evaluate(d, c) {
 // ----------------------------------------------------------------------------
 // Camera read (native Request: no CORS, no server)
 // ----------------------------------------------------------------------------
-async function getJSON(path) {
-  const r = new Request(CAMERA_URL.replace(/\/+$/, "") + path);
-  r.timeoutInterval = TIMEOUT;
+async function getJSON(s, path) {
+  const r = new Request(s.cameraUrl.replace(/\/+$/, "") + path);
+  r.timeoutInterval = s.timeout;
   return await r.loadJSON();
 }
 
@@ -177,12 +234,12 @@ function demoSnap(kind) {
   return d;
 }
 
-async function snapshot() {
-  if (DEMO) return demoSnap(DEMO);
+async function snapshot(s, demoKind) {
+  if (demoKind) return demoSnap(demoKind);
   try {
-    const [status, version] = await Promise.all([getJSON("/status"), getJSON("/version")]);
+    const [status, version] = await Promise.all([getJSON(s, "/status"), getJSON(s, "/version")]);
     let network = null;
-    try { network = await getJSON("/networkstatus"); } catch (e) { /* optional */ }
+    try { network = await getJSON(s, "/networkstatus"); } catch (e) { /* optional */ }
     return { ok: true, status, version, network };
   } catch (e) {
     return { ok: false };
@@ -266,14 +323,45 @@ function buildWidget(res) {
 // Entry
 // ----------------------------------------------------------------------------
 async function main() {
-  const res = evaluate(await snapshot(), CFG);
+  let s = loadSettings();
 
+  // Widget: render compact state, no menu.
   if (config.runsInWidget) {
+    const res = evaluate(await snapshot(s, DEMO), s);
     Script.setWidget(buildWidget(res));
     Script.complete();
     return;
   }
 
+  // Field use (Home Screen icon, Share Sheet, Siri): go straight to the check.
+  // Opened inside the Scriptable app: show a menu so settings are reachable.
+  const inApp = config.runsInApp && !config.runsFromHomeScreen;
+  let demoKind = DEMO;
+
+  if (inApp) {
+    const m = new Alert();
+    m.title = "RedEdge Readiness";
+    m.message = "Camera " + s.cameraUrl;
+    m.addAction("Check now");        // 0
+    m.addAction("Settings");         // 1
+    m.addAction("Demo: all clear");  // 2
+    m.addAction("Demo: low SD");     // 3
+    m.addAction("Demo: no GPS");     // 4
+    m.addAction("Demo: DLS error");  // 5
+    m.addAction("Demo: no link");    // 6
+    m.addCancelAction("Cancel");
+    const i = await m.presentSheet();
+    if (i === -1) { Script.complete(); return; }
+    if (i === 1) { const ns = await editSettings(s); if (ns) s = ns; demoKind = ""; }
+    else if (i === 2) demoKind = "go";
+    else if (i === 3) demoKind = "sd";
+    else if (i === 4) demoKind = "gps";
+    else if (i === 5) demoKind = "dls";
+    else if (i === 6) demoKind = "down";
+    else demoKind = "";
+  }
+
+  const res = evaluate(await snapshot(s, demoKind), s);
   const wv = new WebView();
   await wv.loadHTML(buildHTML(res));
   await wv.present(true);
