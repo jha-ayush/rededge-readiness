@@ -130,5 +130,23 @@ class ConfigPrecedence(unittest.TestCase):
                 os.chdir(cwd)
 
 
+class Verify(unittest.TestCase):
+    def test_counts_against_mock(self):
+        with mock_server("healthy") as url:
+            client = rededge.RedEdgeClient(url, 2.0)
+            info = rededge.count_captures(client)
+            self.assertEqual(info["captures"], 1)
+            self.assertEqual(info["sets"], 1)
+            self.assertGreater(info["bytes"], 0)
+
+    def test_empty_card_zero_captures(self):
+        class EmptyClient:
+            def list_files(self, path="/"):
+                return {"files": [], "directories": []}
+        info = rededge.count_captures(EmptyClient())
+        self.assertEqual(info["captures"], 0)
+        self.assertEqual(info["sets"], 0)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
