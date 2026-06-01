@@ -44,6 +44,55 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 DEFAULT_URL = os.environ.get("REDEDGE_URL", "http://192.168.10.254")
 DEFAULT_TIMEOUT = 2.5
 
+# Built-in defaults. The config file (rededge.json) and the iOS Scriptable
+# settings share this key schema so all the tools speak the same format.
+CONFIG_DEFAULTS = {
+    "cameraUrl": DEFAULT_URL, "timeout": DEFAULT_TIMEOUT,
+    "sd": 2, "sats": 6, "pacc": 5, "volts": 4.2,
+    "cams": 0, "fw": "", "dls": False,
+}
+
+
+def config_path(explicit):
+    """Resolve which config file to use: explicit flag, then REDEDGE_CONFIG,
+    then rededge.json in the working directory if present, else None."""
+    if explicit:
+        return explicit
+    env = os.environ.get("REDEDGE_CONFIG")
+    if env:
+        return env
+    return "rededge.json" if os.path.exists("rededge.json") else None
+
+
+def load_config(explicit):
+    path = config_path(explicit)
+    if not path or not os.path.exists(path):
+        return {}
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except (OSError, ValueError) as e:
+        sys.stderr.write("warning: could not read config %s: %s\n" % (path, e))
+        return {}
+
+
+def resolve_settings(args):
+    """Precedence: built-in defaults < config file < command-line flags.
+    Returns the cfg dict the evaluator expects (internal key 'url')."""
+    f = load_config(getattr(args, "config", None))
+    pick = lambda key, val: val if val is not None else f.get(key, CONFIG_DEFAULTS[key])
+    return {
+        "url": pick("cameraUrl", args.url),
+        "timeout": pick("timeout", args.timeout),
+        "sd": pick("sd", args.min_sd),
+        "sats": pick("sats", args.min_sats),
+        "pacc": pick("pacc", args.max_pacc),
+        "volts": pick("volts", args.min_volts),
+        "cams": pick("cams", args.cameras),
+        "fw": pick("fw", args.firmware),
+        "dls": True if args.require_dls else f.get("dls", CONFIG_DEFAULTS["dls"]),
+    }
+
 # Routes the local proxy is allowed to forward. Read-only by design: the
 # browser tool can never trigger a capture, delete a file, or reformat a card.
 PROXY_ALLOW = ("status", "version", "networkstatus", "camera_info",
@@ -296,9 +345,7 @@ def render(result, cfg, use_color=True):
 
 
 def cfg_from_args(a):
-    return {"url": a.url, "sd": a.min_sd, "sats": a.min_sats, "pacc": a.max_pacc,
-            "volts": a.min_volts, "cams": a.cameras, "fw": a.firmware,
-            "dls": a.require_dls}
+    return resolve_settings(a)
 
 
 # ----------------------------------------------------------------------------
@@ -419,15 +466,19 @@ def serve(client, page_path, port):
 # ----------------------------------------------------------------------------
 def build_parser():
     p = argparse.ArgumentParser(description="RedEdge field tool (stdlib only).")
-    p.add_argument("--url", default=DEFAULT_URL, help="camera base URL")
-    p.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT)
-    p.add_argument("--min-sd", type=float, default=2.0, help="min SD free (GB)")
-    p.add_argument("--min-sats", type=int, default=6, help="min GPS sats")
-    p.add_argument("--max-pacc", type=float, default=5.0, help="max pos error (m)")
-    p.add_argument("--min-volts", type=float, default=4.2, help="min supply (V)")
-    p.add_argument("--cameras", type=int, default=0, help="expected cameras (0=any)")
-    p.add_argument("--firmware", default="", help="expected firmware (blank=any)")
-    p.add_argument("--require-dls", action="store_true", help="DLS required")
+    # Defaults are None so we can tell an explicit flag from an unset one; the
+    # real defaults live in CONFIG_DEFAULTS and are applied in resolve_settings.
+    p.add_argument("--config", help="path to config JSON (default: rededge.json)")
+    p.add_argument("--url", default=None, help="camera base URL (overrides config)")
+    p.add_argument("--timeout", type=float, default=None)
+    p.add_argument("--min-sd", type=float, default=None, help="min SD free (GB)")
+    p.add_argument("--min-sats", type=int, default=None, help="min GPS sats")
+    p.add_argument("--max-pacc", type=float, default=None, help="max pos error (m)")
+    p.add_argument("--min-volts", type=float, default=None, help="min supply (V)")
+    p.add_argument("--cameras", type=int, default=None, help="expected cameras (0=any)")
+    p.add_argument("--firmware", default=None, help="expected firmware (blank=any)")
+    p.add_argument("--require-dls", action="store_const", const=True, default=None,
+                   help="DLS required")
     p.add_argument("--no-color", action="store_true")
 
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -445,16 +496,29 @@ def build_parser():
     sv = sub.add_parser("serve", help="serve the page + CORS proxy for live use")
     sv.add_argument("--page", default="rededge-readiness.html")
     sv.add_argument("--port", type=int, default=8000)
+    ic = sub.add_parser("init-config", help="write a template rededge.json")
+    ic.add_argument("--path", default="rededge.json")
     return p
 
 
 def main(argv=None):
     args = build_parser().parse_args(argv)
-    client = RedEdgeClient(args.url, args.timeout)
+
+    if args.cmd == "init-config":
+        if os.path.exists(args.path):
+            sys.stderr.write("refusing to overwrite existing %s\n" % args.path)
+            return 1
+        with open(args.path, "w") as f:
+            json.dump(CONFIG_DEFAULTS, f, indent=2)
+            f.write("\n")
+        print("wrote template config to %s" % args.path)
+        return 0
+
+    cfg = resolve_settings(args)
+    client = RedEdgeClient(cfg["url"], cfg["timeout"])
     use_color = (not args.no_color) and sys.stdout.isatty()
 
     if args.cmd in ("check", "watch"):
-        cfg = cfg_from_args(args)
         if args.cmd == "check":
             result = evaluate(snapshot(client), cfg)
             print(render(result, cfg, use_color))
@@ -474,7 +538,7 @@ def main(argv=None):
     if args.cmd == "status":
         snap = snapshot(client)
         if not snap.get("ok"):
-            print("No link to camera at %s" % args.url)
+            print("No link to camera at %s" % cfg["url"])
             return 2
         print(json.dumps({k: snap[k] for k in ("status", "version", "network")},
                          indent=2))
