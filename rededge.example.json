@@ -1,0 +1,11 @@
+{
+  "cameraUrl": "http://192.168.10.254",
+  "timeout": 2.5,
+  "sd": 2,
+  "sats": 6,
+  "pacc": 5,
+  "volts": 4.2,
+  "cams": 0,
+  "fw": "",
+  "dls": false
+}
