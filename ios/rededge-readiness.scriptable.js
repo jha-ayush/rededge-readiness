@@ -246,6 +246,53 @@ async function snapshot(s, demoKind) {
   }
 }
 
+// Post-flight: walk the card and count captures (IMG_NNNN sets).
+async function countCaptures(s) {
+  let sets = 0, bytes = 0;
+  const caps = new Set();
+  async function walk(remote) {
+    const sub = remote.replace(/^\/+/, "");
+    const listing = await getJSON(s, "/files/" + sub);
+    for (const f of (listing.files || [])) {
+      bytes += (f.size || 0);
+      const name = f.name || "";
+      if (name.toUpperCase().startsWith("IMG_") && name.includes("_")) {
+        caps.add(remote + "|" + name.substring(0, name.lastIndexOf("_")));
+      }
+    }
+    for (const d of (listing.directories || [])) {
+      if ((remote === "" || remote === "/") && d.toUpperCase().endsWith("SET")) sets++;
+      await walk((remote.replace(/\/+$/, "") + "/" + d).replace(/^\/+/, ""));
+    }
+  }
+  await walk("");
+  return { sets, captures: caps.size, bytes };
+}
+
+async function runPostflight(s) {
+  let info;
+  try { info = await countCaptures(s); }
+  catch (e) { return evaluate({ ok: false }, s); }  // reuse the no-link readout
+  let st = {};
+  try { st = await getJSON(s, "/status"); } catch (e) { /* SD line optional */ }
+  const ok = info.captures > 0;
+  const checks = [
+    { label: "Captures", read: String(info.captures), unit: "", state: ok ? "GO" : "CHECK", note: ok ? "image sets on the card" : "card has no images" },
+    { label: "SET folders", read: String(info.sets), unit: "", state: "GO", note: "capture folders" },
+    { label: "Data on card", read: (info.bytes / 1e6).toFixed(1), unit: "MB", state: "GO", note: "total image bytes" },
+  ];
+  if (typeof st.sd_gb_free === "number") {
+    checks.push({ label: "SD free", read: st.sd_gb_free.toFixed(1), unit: "GB", state: "GO", note: "remaining space" });
+  }
+  return {
+    overall: ok ? "GO" : "CHECK",
+    reason: ok ? "Post-flight: captures found." : "Post-flight: no captures found.",
+    sub: ok ? "Confirm coverage before leaving the site." : "Do not pack up before re-checking the card.",
+    checks,
+  };
+}
+
+
 // ----------------------------------------------------------------------------
 // Rendering
 // ----------------------------------------------------------------------------
@@ -337,33 +384,36 @@ async function main() {
   // Opened inside the Scriptable app: show a menu so settings are reachable.
   const inApp = config.runsInApp && !config.runsFromHomeScreen;
   let demoKind = DEMO;
+  let result = null;  // set directly by branches that build their own result
 
   if (inApp) {
     const m = new Alert();
     m.title = "RedEdge Readiness";
     m.message = "Camera " + s.cameraUrl;
-    m.addAction("Check now");        // 0
-    m.addAction("Settings");         // 1
-    m.addAction("Demo: all clear");  // 2
-    m.addAction("Demo: low SD");     // 3
-    m.addAction("Demo: no GPS");     // 4
-    m.addAction("Demo: DLS error");  // 5
-    m.addAction("Demo: no link");    // 6
+    m.addAction("Check now");          // 0
+    m.addAction("Post-flight check");  // 1
+    m.addAction("Settings");           // 2
+    m.addAction("Demo: all clear");    // 3
+    m.addAction("Demo: low SD");       // 4
+    m.addAction("Demo: no GPS");       // 5
+    m.addAction("Demo: DLS error");    // 6
+    m.addAction("Demo: no link");      // 7
     m.addCancelAction("Cancel");
     const i = await m.presentSheet();
     if (i === -1) { Script.complete(); return; }
-    if (i === 1) { const ns = await editSettings(s); if (ns) s = ns; demoKind = ""; }
-    else if (i === 2) demoKind = "go";
-    else if (i === 3) demoKind = "sd";
-    else if (i === 4) demoKind = "gps";
-    else if (i === 5) demoKind = "dls";
-    else if (i === 6) demoKind = "down";
+    if (i === 1) { result = await runPostflight(s); }
+    else if (i === 2) { const ns = await editSettings(s); if (ns) s = ns; demoKind = ""; }
+    else if (i === 3) demoKind = "go";
+    else if (i === 4) demoKind = "sd";
+    else if (i === 5) demoKind = "gps";
+    else if (i === 6) demoKind = "dls";
+    else if (i === 7) demoKind = "down";
     else demoKind = "";
   }
 
-  const res = evaluate(await snapshot(s, demoKind), s);
+  if (!result) result = evaluate(await snapshot(s, demoKind), s);
   const wv = new WebView();
-  await wv.loadHTML(buildHTML(res));
+  await wv.loadHTML(buildHTML(result));
   await wv.present(true);
   Script.complete();
 }
