@@ -39,8 +39,9 @@
     background-image:radial-gradient(900px 520px at 82% -12%, var(--topglow), transparent 60%);
     -webkit-font-smoothing:antialiased;
     transition:background-color var(--ease), color var(--ease);
+    display:flex;flex-direction:column;
   }
-  .wrap{max-width:560px;margin:0 auto;animation:rise .5s var(--ease) both}
+  .wrap{width:100%;max-width:560px;margin:auto;animation:rise .5s var(--ease) both}
   @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 
   /* Header */
@@ -160,6 +161,29 @@
   .foot{margin-top:16px;font-size:11.5px;color:var(--faint);line-height:1.5}
   .foot b{color:var(--muted);font-weight:600}
 
+  /* Contextual hint (e.g. live + no link) */
+  .hint{margin-top:10px;display:flex;gap:11px;align-items:flex-start;
+    background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--check);
+    border-radius:10px;padding:12px 14px;font-size:12.5px;color:var(--muted);line-height:1.5;box-shadow:var(--shadow);
+    animation:settleIn .26s cubic-bezier(.4,0,.2,1) both}
+  .hint[hidden]{display:none}
+  .hint .hi{color:var(--check);font-size:15px;line-height:1.2;flex:none}
+  .hint b{color:var(--text);font-weight:600}
+  .hint a{color:var(--text);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+
+  /* Help panel */
+  .help-body{padding:14px;font-size:13px;line-height:1.55;color:var(--muted)}
+  .help-body h4{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);
+    font-family:var(--mono);font-weight:600;margin:14px 0 6px}
+  .help-body h4:first-child{margin-top:0}
+  .help-body p{margin:0 0 8px}
+  .help-body b{color:var(--text);font-weight:600}
+  .help-row{display:flex;gap:10px;padding:6px 0;border-top:1px solid var(--line)}
+  .help-row:first-of-type{border-top:none}
+  .help-row .hk{flex:none;width:124px;color:var(--text);font-weight:500}
+  .help-row .hv{flex:1;color:var(--muted)}
+  .kbd{font-family:var(--mono);font-size:11.5px;background:var(--tagbg);color:var(--text);padding:1px 6px;border-radius:5px}
+
   /* Narrow phones */
   @media (max-width:380px){
     body{padding-left:11px;padding-right:11px}
@@ -172,8 +196,7 @@
   }
   /* Tablets and up */
   @media (min-width:720px){
-    .wrap{max-width:760px}
-    .checks{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .wrap{max-width:760px}    .checks{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .banner{padding:28px 26px}
     .state-word{font-size:clamp(52px,8vw,74px)}
   }
@@ -209,6 +232,7 @@
       <div class="link-pill" id="linkPill"><span class="link-dot"></span><span id="linkText">no link</span></div>
       <button class="icon-btn" id="themeBtn" title="Toggle light / dark" aria-label="Toggle light or dark theme">&#9728;</button>
       <button class="icon-btn" id="refreshBtn" title="Refresh now" aria-label="Refresh now">&#x21bb;</button>
+      <button class="icon-btn" id="helpBtn" title="How it works" aria-label="How it works">&#63;</button>
       <button class="icon-btn" id="gearBtn" title="Settings" aria-label="Open settings">&#9881;</button>
     </div>
   </header>
@@ -235,10 +259,48 @@
     <div class="updated"><span id="updatedText">awaiting first read</span></div>
   </div>
 
+  <div class="hint" id="hint" hidden>
+    <span class="hi">&#9888;</span>
+    <div><b>No camera found.</b> Join the camera's WiFi network, then refresh. Wrong address? Set it under <a id="hintSettings">Settings</a>. Just exploring? Pick a <b>Demo</b> from the Source menu to preview each state.</div>
+  </div>
+
   <div class="legend">
     <span class="lg"><i class="GO"></i><b>GO</b>&nbsp;ready to capture</span>
     <span class="lg"><i class="CHECK"></i><b>CHECK</b>&nbsp;needs attention</span>
     <span class="lg"><i class="NO-GO"></i><b>NO-GO</b>&nbsp;do not fly</span>
+  </div>
+
+  <div class="panel-box" id="help" hidden>
+    <div class="panel-head">How it works</div>
+    <div class="help-body">
+      <h4>What this is</h4>
+      <p>A pre-flight check for the MicaSense RedEdge and Altum multispectral cameras. It reads the camera over its own WiFi and tells you, in one glance, whether the sensor is ready to capture usable data. It reports sensor readiness, not airspace or flight legality.</p>
+
+      <h4>Reading the result</h4>
+      <div class="help-row"><span class="hk"><b style="color:var(--go)">GO</b></span><span class="hv">Every monitored system is within tolerance. Clear to capture.</span></div>
+      <div class="help-row"><span class="hk"><b style="color:var(--check)">CHECK</b></span><span class="hv">Something needs attention, or could not be confirmed. Review before flying.</span></div>
+      <div class="help-row"><span class="hk"><b style="color:var(--nogo)">NO-GO</b></span><span class="hv">A blocking problem, or no link to the camera. Do not fly until resolved.</span></div>
+      <p style="margin-top:8px"><b>Fail toward caution:</b> anything unconfirmed is treated as CHECK; a lost link is NO-GO. The tool never shows a clear pass on missing data.</p>
+
+      <h4>What each check verifies</h4>
+      <div class="help-row"><span class="hk">SD storage</span><span class="hv">Card present, writable, and above your free-space floor.</span></div>
+      <div class="help-row"><span class="hk">GPS fix</span><span class="hv">Enough satellites for reliable geotagging, no interference.</span></div>
+      <div class="help-row"><span class="hk">Position accuracy</span><span class="hv">Reported error within your maximum.</span></div>
+      <div class="help-row"><span class="hk">Light sensor</span><span class="hv">DLS irradiance sensor active, needed for reflectance work.</span></div>
+      <div class="help-row"><span class="hk">Supply voltage</span><span class="hv">Camera supply above your floor.</span></div>
+      <div class="help-row"><span class="hk">Time source</span><span class="hv">Valid clock for timestamps.</span></div>
+      <div class="help-row"><span class="hk">Camera rig</span><span class="hv">Expected cameras online, firmware consistent.</span></div>
+      <div class="help-row"><span class="hk">Firmware</span><span class="hv">Matches the version you expect, if set.</span></div>
+      <p style="margin-top:8px">Thresholds are yours to set. Open <a id="helpToSettings" style="color:var(--text);cursor:pointer;text-decoration:underline">Settings</a> to adjust the camera address and every limit.</p>
+
+      <h4>Source menu</h4>
+      <p><b>Live camera</b> reads the real device, so you must be joined to its WiFi. The <b>Demo</b> options replay each state for preview and training without any hardware.</p>
+
+      <h4>Controls</h4>
+      <div class="help-row"><span class="hk"><span class="kbd">&#9728;</span> / <span class="kbd">&#9790;</span></span><span class="hv">Toggle light and dark.</span></div>
+      <div class="help-row"><span class="hk"><span class="kbd">&#x21bb;</span></span><span class="hv">Refresh now. Live mode also auto-refreshes on your poll interval.</span></div>
+      <div class="help-row"><span class="hk"><span class="kbd">&#9881;</span></span><span class="hv">Settings: camera address, thresholds, poll interval.</span></div>
+    </div>
   </div>
 
   <div class="section-label">System checks</div>
@@ -584,6 +646,8 @@ async function tick(){
   else { d=demo(src); }
   setLink(!!d.ok);
   render(evaluate(d,cfg));
+  // Contextual help only when trying Live and the camera is unreachable.
+  el("hint").hidden = !(src==="live" && !d.ok);
   nextAt=Date.now()+Math.max(1,cfg.poll)*1000;
   stamp(); busy=false;
   el("refreshBtn").classList.remove("spin");
@@ -603,7 +667,11 @@ function fillSettings(){
   el("cfgPacc").value=cfg.pacc; el("cfgVolts").value=cfg.volts; el("cfgCams").value=cfg.cams;
   el("cfgPoll").value=cfg.poll; el("cfgFw").value=cfg.fw; el("cfgDls").checked=cfg.dls;
 }
-el("gearBtn").onclick=()=>{ const s=el("settings"); s.hidden=!s.hidden; if(!s.hidden) fillSettings(); };
+el("gearBtn").onclick=()=>{ const s=el("settings"); s.hidden=!s.hidden; if(!s.hidden){ el("help").hidden=true; fillSettings(); } };
+el("helpBtn").onclick=()=>{ const h=el("help"); h.hidden=!h.hidden; if(!h.hidden) el("settings").hidden=true; };
+function openSettings(){ el("help").hidden=true; el("settings").hidden=false; fillSettings(); el("settings").scrollIntoView({behavior:"smooth",block:"nearest"}); }
+el("hintSettings").onclick=openSettings;
+el("helpToSettings").onclick=openSettings;
 el("applyBtn").onclick=()=>{
   cfg={
     url:el("cfgUrl").value.trim()||DEFAULTS.url,
