@@ -117,7 +117,10 @@
     display:flex;align-items:center;gap:13px;background:var(--panel);
     border:1px solid var(--line);border-radius:12px;padding:13px 14px;box-shadow:var(--shadow);
     transition:border-color var(--ease),background-color var(--ease);
+    cursor:pointer;-webkit-tap-highlight-color:transparent;
   }
+  .check:hover{border-color:var(--faint)}
+  .check:focus-visible{outline:2px solid var(--faint);outline-offset:2px}
   .dot{width:9px;height:9px;border-radius:50%;flex:none;background:var(--unknown)}
   .dot.GO{background:var(--go);box-shadow:0 0 7px var(--go)}
   .dot.CHECK{background:var(--check);box-shadow:0 0 7px var(--check)}
@@ -127,8 +130,13 @@
   .check .label{font-size:13.5px;font-weight:500;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .tag{font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.05em;padding:2px 6px;border-radius:5px;background:var(--tagbg);color:var(--unknown)}
   .tag.GO{color:var(--go)} .tag.CHECK{color:var(--check)} .tag.NO-GO{color:var(--nogo)} .tag.UNKNOWN{color:var(--unknown)}
+  .caret{margin-left:auto;color:var(--faint);font-size:15px;line-height:1;transition:transform var(--ease);transform:rotate(0deg)}
+  .check.open .caret{transform:rotate(90deg)}
   .check .note{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.35}
-  .check .read{font-family:var(--mono);font-size:13px;color:var(--text);text-align:right;white-space:nowrap}
+  .check .desc{font-size:11.5px;color:var(--faint);line-height:1.45;max-height:0;opacity:0;overflow:hidden;
+    transition:max-height var(--ease),opacity var(--ease),margin var(--ease)}
+  .check.open .desc{max-height:120px;opacity:1;margin-top:6px}
+  .check .read{font-family:var(--mono);font-size:13px;color:var(--text);text-align:right;white-space:nowrap;align-self:flex-start}
   .check .read .u{color:var(--faint);font-size:11px;margin-left:2px}
   .check[data-s="CHECK"] .read{color:var(--check)}
   .check[data-s="NO-GO"] .read{color:var(--nogo)}
@@ -185,6 +193,10 @@
   .kbd{font-family:var(--mono);font-size:11.5px;background:var(--tagbg);color:var(--text);padding:1px 6px;border-radius:5px}
 
   /* Narrow phones */
+  @media (max-width:480px){
+    header{flex-wrap:wrap}
+    .actions{margin-left:0;width:100%;justify-content:flex-start}
+  }
   @media (max-width:380px){
     body{padding-left:11px;padding-right:11px}
     .brand{font-size:14px}
@@ -193,6 +205,8 @@
     .grid{grid-template-columns:1fr}
     .state-word{font-size:clamp(34px,15vw,52px)}
     .tagline{max-width:24ch}
+    .help-row{flex-direction:column;gap:2px}
+    .help-row .hk{width:auto}
   }
   /* Tablets and up */
   @media (min-width:720px){
@@ -303,7 +317,7 @@
     </div>
   </div>
 
-  <div class="section-label">System checks</div>
+  <div class="section-label">System checks <span style="text-transform:none;letter-spacing:0;color:var(--faint)">&middot; tap a row for detail</span></div>
   <div class="checks" id="checks"></div>
 
   <div class="panel-box" id="settings" hidden>
@@ -562,7 +576,24 @@ function demo(kind){
 
 /* ---------- render ---------- */
 const el=id=>document.getElementById(id);
-let lastOverall=null;
+
+/* Plain-language explanation plus the active threshold for each check, so a
+   row can show why a value passes or fails without opening Settings. */
+function checkDetail(label, c){
+  switch(label){
+    case "SD storage": return "Card must be present, writable, and keep at least "+c.sd+" GB free.";
+    case "GPS fix": return "Wants "+c.sats+" or more satellites with no interference for reliable geotagging.";
+    case "Position accuracy": return "Reported position error should stay within "+c.pacc+" m.";
+    case "Light sensor": return "DLS irradiance sensor, used for reflectance calibration."+(c.dls?" Required by your settings.":" Optional unless you require it.");
+    case "Supply voltage": return "Camera supply should stay above "+c.volts+" V.";
+    case "Time source": return "A valid clock is needed for correct image timestamps.";
+    case "Camera rig": return "Expected cameras online"+(c.cams>0?" ("+c.cams+")":" (any)")+" with matching firmware.";
+    case "Firmware": return c.fw?("Expecting firmware "+c.fw+"."):"Any firmware version is accepted.";
+    case "Camera link": return "The tool reaches the camera at "+c.url+" over its WiFi.";
+    default: return "";
+  }
+}
+
 function render(res){
   const b=el("banner");
   if(b.dataset.s!==res.overall){
@@ -580,11 +611,15 @@ function render(res){
   for(let i=box.children.length;i<rows.length;i++){
     const node=document.createElement("div");
     node.className="check enter";
+    node.setAttribute("role","button");
+    node.setAttribute("tabindex","0");
     node.innerHTML='<span class="dot"></span><div class="meta"><div class="label">'
-      +'<span class="lbl"></span> <span class="tag"></span></div>'
-      +'<div class="note"></div></div><div class="read"></div>';
+      +'<span class="lbl"></span> <span class="tag"></span><span class="caret">\u203a</span></div>'
+      +'<div class="note"></div><div class="desc"></div></div><div class="read"></div>';
+    const toggle=()=>node.classList.toggle("open");
+    node.addEventListener("click",toggle);
+    node.addEventListener("keydown",(e)=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); toggle(); } });
     box.appendChild(node);
-    // stagger only the initial appearance
     node.style.animationDelay=(i*45)+"ms";
   }
   for(let i=0;i<rows.length;i++){
@@ -597,7 +632,7 @@ function render(res){
     }
     setText(node.querySelector(".lbl"), ck.label);
     setText(node.querySelector(".note"), ck.note||"");
-    const read=ck.read+(ck.unit?'\u2009':'');
+    setText(node.querySelector(".desc"), checkDetail(ck.label, cfg));
     const readEl=node.querySelector(".read");
     const html=ck.read+(ck.unit?' <span class="u">'+ck.unit+'</span>':'');
     if(readEl.innerHTML!==html) readEl.innerHTML=html;
