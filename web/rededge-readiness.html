@@ -178,7 +178,22 @@
   @media (prefers-reduced-motion:reduce){
     .wrap{animation:none}
     .pulse{animation:none}
+    .check.enter{animation:none}
+    .banner.flash{animation:none}
+    .icon-btn.spin{animation:none}
   }
+
+  /* Seamless update affordances */
+  .check.enter{animation:checkIn .4s cubic-bezier(.4,0,.2,1) both}
+  @keyframes checkIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .check .dot{transition:background var(--ease),box-shadow var(--ease)}
+  .check .read,.check .tag{transition:color var(--ease)}
+  .banner.flash{animation:bannerFlash .55s ease-out}
+  @keyframes bannerFlash{0%{transform:scale(1)}30%{transform:scale(1.012)}100%{transform:scale(1)}}
+  .icon-btn.spin{animation:spin .7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #settings{animation:settleIn .26s cubic-bezier(.4,0,.2,1) both}
+  @keyframes settleIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 </style>
 </head>
 <body>
@@ -209,7 +224,7 @@
     </select>
   </div>
 
-  <div class="banner" id="banner" data-s="UNKNOWN">
+  <div class="banner" id="banner" data-s="UNKNOWN" role="status" aria-live="polite">
     <div class="banner-row">
       <div class="state-word" id="stateWord">...</div>
       <div class="pulse"></div>
@@ -483,32 +498,66 @@ function demo(kind){
 
 /* ---------- render ---------- */
 const el=id=>document.getElementById(id);
+let lastOverall=null;
 function render(res){
   const b=el("banner");
-  b.dataset.s=res.overall;
-  el("stateWord").textContent=res.overall;
+  if(b.dataset.s!==res.overall){
+    // Brief emphasis only when the overall state actually changes.
+    b.dataset.s=res.overall;
+    el("stateWord").textContent=res.overall;
+    b.classList.remove("flash"); void b.offsetWidth; b.classList.add("flash");
+  }
   el("reason").innerHTML=res.reason+(res.sub?'<div class="sub">'+res.sub+'</div>':'');
-  const box=el("checks"); box.innerHTML="";
-  for(const ck of res.checks){
+
+  const box=el("checks");
+  const rows=res.checks;
+  // Reconcile node count without tearing the list down (no flicker on poll).
+  while(box.children.length>rows.length) box.removeChild(box.lastChild);
+  for(let i=box.children.length;i<rows.length;i++){
     const node=document.createElement("div");
-    node.className="check"; node.dataset.s=ck.state;
-    node.innerHTML=
-      '<span class="dot '+ck.state+'"></span>'+
-      '<div class="meta"><div class="label">'+ck.label+
-      ' <span class="tag '+ck.state+'">'+ck.state+'</span></div>'+
-      (ck.note?'<div class="note">'+ck.note+'</div>':'')+'</div>'+
-      '<div class="read">'+ck.read+(ck.unit?' <span class="u">'+ck.unit+'</span>':'')+'</div>';
+    node.className="check enter";
+    node.innerHTML='<span class="dot"></span><div class="meta"><div class="label">'
+      +'<span class="lbl"></span> <span class="tag"></span></div>'
+      +'<div class="note"></div></div><div class="read"></div>';
     box.appendChild(node);
+    // stagger only the initial appearance
+    node.style.animationDelay=(i*45)+"ms";
+  }
+  for(let i=0;i<rows.length;i++){
+    const ck=rows[i], node=box.children[i];
+    if(node.dataset.s!==ck.state){
+      node.dataset.s=ck.state;
+      node.querySelector(".dot").className="dot "+ck.state;
+      node.querySelector(".tag").className="tag "+ck.state;
+      node.querySelector(".tag").textContent=ck.state;
+    }
+    setText(node.querySelector(".lbl"), ck.label);
+    setText(node.querySelector(".note"), ck.note||"");
+    const read=ck.read+(ck.unit?'\u2009':'');
+    const readEl=node.querySelector(".read");
+    const html=ck.read+(ck.unit?' <span class="u">'+ck.unit+'</span>':'');
+    if(readEl.innerHTML!==html) readEl.innerHTML=html;
   }
 }
+function setText(node,t){ if(node.textContent!==t) node.textContent=t; }
 function setLink(up){
   const p=el("linkPill");
   p.classList.toggle("up",up); p.classList.toggle("down",!up);
   el("linkText").textContent=up?"linked":"no link";
 }
 function stamp(){
-  const t=new Date();
-  el("updatedText").textContent="updated "+t.toLocaleTimeString([], {hour12:false});
+  lastStampAt=Date.now();
+  paintStatus();
+}
+let lastStampAt=0, nextAt=0;
+function paintStatus(){
+  const t=new Date(lastStampAt||Date.now());
+  let line="updated "+t.toLocaleTimeString([], {hour12:false});
+  if(el("source").value==="live" && nextAt){
+    const secs=Math.max(0,Math.ceil((nextAt-Date.now())/1000));
+    line+=" \u00b7 next in "+secs+"s";
+  }
+  el("updatedText").textContent=line;
 }
 
 /* ---------- theme ---------- */
@@ -523,21 +572,27 @@ function applyTheme(t){
 }
 
 /* ---------- loop ---------- */
-let timer=null, busy=false;
+let timer=null, countdownTimer=null, busy=false;
 async function tick(){
   if(busy) return; busy=true;
+  el("refreshBtn").classList.add("spin");
   const src=el("source").value;
   let d;
   if(src==="live"){ d=await readLive(cfg); }
   else { d=demo(src); }
   setLink(!!d.ok);
   render(evaluate(d,cfg));
+  nextAt=Date.now()+Math.max(1,cfg.poll)*1000;
   stamp(); busy=false;
+  el("refreshBtn").classList.remove("spin");
 }
 function schedule(){
   if(timer) clearInterval(timer);
+  if(countdownTimer) clearInterval(countdownTimer);
   const ms=Math.max(1,cfg.poll)*1000;
+  nextAt=Date.now()+ms;
   timer=setInterval(tick,ms);
+  countdownTimer=setInterval(paintStatus,1000);  // keeps the "next in" ticking
 }
 
 /* ---------- settings wiring ---------- */
