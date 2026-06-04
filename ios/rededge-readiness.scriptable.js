@@ -110,7 +110,9 @@ function evaluate(d, c) {
       checks: [{ label: "Camera link", read: "down", state: "NO-GO", note: "no response from " + (c.cameraUrl || "camera") }],
     };
   }
-  const s = d.status || {}, net = d.network, ver = d.version || {};
+  const s = (d.status && typeof d.status === "object") ? d.status : {},
+        net = d.network,
+        ver = (d.version && typeof d.version === "object") ? d.version : {};
   const out = [];
 
   // SD storage
@@ -121,7 +123,7 @@ function evaluate(d, c) {
     else if (st === "Full") { state = "NO-GO"; note = "card full, offload before flight"; }
     else if (s.sd_warn) { state = "CHECK"; note = "low-space warning or unrecommended filesystem"; }
     else if (typeof free === "number" && free < c.sd) { state = "CHECK"; note = "below " + c.sd + " GB headroom"; }
-    else if (st === undefined) { state = "UNKNOWN"; note = "card status not reported"; }
+    else if (st !== "Ok") { state = "UNKNOWN"; note = (st === undefined ? "card status not reported" : "unrecognized card status"); }
     out.push({ label: "SD storage", read: (typeof free === "number" ? free.toFixed(1) : "--"), unit: "GB free", state, note });
   })();
 
@@ -153,7 +155,7 @@ function evaluate(d, c) {
     if (dls === "Error") { state = "NO-GO"; note = "DLS error, reflectance data unreliable"; }
     else if (dls === "NotPresent") { state = c.dls ? "CHECK" : "GO"; note = c.dls ? "no DLS, reflectance calibration limited" : "no DLS (not required)"; }
     else if (dls === "Programming" || dls === "Initializing") { state = "CHECK"; note = "DLS warming up, wait"; }
-    else if (dls === undefined) { state = "UNKNOWN"; note = "DLS state not reported"; }
+    else if (dls !== "Ok") { state = "UNKNOWN"; note = (dls === undefined ? "DLS state not reported" : "unrecognized DLS state"); }
     out.push({ label: "Light sensor", read: (dls || "--"), unit: "", state, note });
   })();
 
@@ -248,14 +250,19 @@ function demoSnap(kind) {
 
 async function snapshot(s, demoKind) {
   if (demoKind) return demoSnap(demoKind);
+  let status;
   try {
-    const [status, version] = await Promise.all([getJSON(s, "/status"), getJSON(s, "/version")]);
-    let network = null;
-    try { network = await getJSON(s, "/networkstatus"); } catch (e) { /* optional */ }
-    return { ok: true, status, version, network };
+    status = await getJSON(s, "/status");
   } catch (e) {
     return { ok: false };
   }
+  if (!status || typeof status !== "object") return { ok: false };
+  // /version and /networkstatus are best-effort: a flaky secondary endpoint
+  // degrades only its own check, it does not fail the whole readout.
+  let version = null, network = null;
+  try { version = await getJSON(s, "/version"); } catch (e) { /* optional */ }
+  try { network = await getJSON(s, "/networkstatus"); } catch (e) { /* optional */ }
+  return { ok: true, status, version, network };
 }
 
 // Post-flight: walk the card and count captures (IMG_NNNN sets).
