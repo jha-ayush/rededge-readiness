@@ -25,7 +25,7 @@
 // Defaults. Editable on the device: open this script inside the Scriptable app
 // and choose Settings. Field use (Home Screen icon or widget) skips the menu
 // and runs the check directly. Settings persist in a local file.
-const DEMO = "";   // top-level demo for the widget: "" live, or go|sd|gps|dls|net|down
+const DEMO = "";   // top-level demo for the widget: "" live, or go|sd|gps|warmup|dls|volts|rig|net|warn|down
 
 const DEFAULTS = {
   cameraUrl: "http://192.168.10.254", // WiFi default; Ethernet 192.168.1.83
@@ -232,8 +232,12 @@ function demoSnap(kind) {
   const d = JSON.parse(JSON.stringify(base));
   if (kind === "sd") { d.status.sd_gb_free = 0.7; d.status.sd_warn = true; }
   if (kind === "gps") { d.status.gps_used_sats = 2; d.status.p_acc = 18.3; d.status.utc_time_valid = false; d.status.time_source = "None"; }
+  if (kind === "warmup") { d.status.dls_status = "Programming"; }
   if (kind === "dls") { d.status.dls_status = "Error"; }
+  if (kind === "volts") { d.status.bus_volts = 3.9; }
   if (kind === "net") { d.network.network_map = [{ device_type: "Camera", sd_status: "Ok", sw_version: "v7.1.0" }]; }
+  if (kind === "rig") { d.network.network_map = [{ device_type: "Camera", sd_status: "Ok", sw_version: "v7.1.0" }, { device_type: "Camera", sd_status: "Ok", sw_version: "v7.0.0" }, { device_type: "DLS 2", sw_version: "v1.2.3" }]; }
+  if (kind === "warn") { d.status.sd_gb_free = 0.7; d.status.sd_warn = true; d.status.bus_volts = 3.9; d.status.gps_used_sats = 4; }
   if (kind === "down") return { ok: false };
   return d;
 }
@@ -423,14 +427,18 @@ async function main() {
     const m = new Alert();
     m.title = "RedEdge Readiness";
     m.message = "Camera " + s.cameraUrl;
-    m.addAction("Check now");          // 0
-    m.addAction("Post-flight check");  // 1
-    m.addAction("Settings");           // 2
-    m.addAction("Demo: all clear");    // 3
-    m.addAction("Demo: low SD");       // 4
-    m.addAction("Demo: no GPS");       // 5
-    m.addAction("Demo: DLS error");    // 6
-    m.addAction("Demo: no link");      // 7
+    m.addAction("Check now");             // 0
+    m.addAction("Post-flight check");     // 1
+    m.addAction("Settings");              // 2
+    m.addAction("Demo: all clear");       // 3  go
+    m.addAction("Demo: low SD");          // 4  sd
+    m.addAction("Demo: no GPS");          // 5  gps
+    m.addAction("Demo: DLS warming up");  // 6  warmup
+    m.addAction("Demo: DLS error");       // 7  dls
+    m.addAction("Demo: low battery");     // 8  volts
+    m.addAction("Demo: rig mismatch");    // 9  rig
+    m.addAction("Demo: multiple warnings"); // 10 warn
+    m.addAction("Demo: no link");         // 11 down
     m.addCancelAction("Cancel");
     const i = await m.presentSheet();
     if (i === -1) { Script.complete(); return; }
@@ -439,8 +447,12 @@ async function main() {
     else if (i === 3) demoKind = "go";
     else if (i === 4) demoKind = "sd";
     else if (i === 5) demoKind = "gps";
-    else if (i === 6) demoKind = "dls";
-    else if (i === 7) demoKind = "down";
+    else if (i === 6) demoKind = "warmup";
+    else if (i === 7) demoKind = "dls";
+    else if (i === 8) demoKind = "volts";
+    else if (i === 9) demoKind = "rig";
+    else if (i === 10) demoKind = "warn";
+    else if (i === 11) demoKind = "down";
     else demoKind = "";
   }
 
