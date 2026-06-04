@@ -134,7 +134,9 @@ in the Settings menu for the iPhone script.
 
 ## About
 
-RedEdge Field Tools is built and maintained by SudoKodes LLC.
+RedEdge Field Tools is a SudoKodes LLC project, from the makers of
+[UAS SkyCheck](https://uas-skycheck.app). It is a standalone tool for
+multispectral sensor readiness, separate from SkyCheck's airspace focus.
 
 RedEdge and Altum are products of MicaSense (AgEagle). This is an independent
 tool and is not affiliated with, sponsored by, or endorsed by them.
