@@ -385,14 +385,19 @@ function buildHTML(res, theme) {
   .note{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.35}
   .read{font-family:var(--mono);font-size:14px;text-align:right;white-space:nowrap}
   .read .u{color:var(--faint);font-size:11px}
-  .foot{margin-top:16px;font-size:11.5px;color:var(--faint);line-height:1.5}
+  .foot{margin-top:18px;padding-top:13px;border-top:1px solid var(--line);font-size:11.5px;color:var(--faint);line-height:1.5}
+  .foot-bar{display:flex;justify-content:space-between;gap:10px;margin-top:10px;padding-top:9px;border-top:1px solid var(--line);font-family:var(--mono);font-size:10.5px}
+  .foot-prod{color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
 </style></head><body><div class="wrap">
   <div class="head"><svg class="mark" viewBox="0 0 36 36" aria-hidden="true"><path d="M 19.31 3.06 A 15 15 0 0 1 32.00 12.62" stroke="#4d8df0" stroke-width="3.6" fill="none" stroke-linecap="round"/><path d="M 32.72 15.14 A 15 15 0 0 1 27.03 29.98" stroke="#2fe39a" stroke-width="3.6" fill="none" stroke-linecap="round"/><path d="M 24.81 31.37 A 15 15 0 0 1 8.97 29.98" stroke="#ff5a5a" stroke-width="3.6" fill="none" stroke-linecap="round"/><path d="M 7.03 28.23 A 15 15 0 0 1 4.00 12.62" stroke="#f6943e" stroke-width="3.6" fill="none" stroke-linecap="round"/><path d="M 5.14 10.27 A 15 15 0 0 1 19.31 3.06" stroke="#b06cf0" stroke-width="3.6" fill="none" stroke-linecap="round"/><circle cx="18" cy="18" r="8" fill="none" stroke="#2fe39a" stroke-width="2" opacity="0.5"/><circle cx="18" cy="18" r="3.4" fill="#2fe39a"/></svg><div class="brand"><span class="r">RED</span>EDGE READINESS</div>
     <div class="stamp">checked ${stamp}</div></div>
   <div class="banner"><div class="state">${res.overall}</div>
     <div class="reason">${esc(res.reason)}<div class="sub">${esc(res.sub)}</div></div></div>
   <div class="checks">${rows}</div>
-  <div class="foot">Fail toward caution. Anything unconfirmed counts as CHECK; a lost link is NO-GO. Reports sensor readiness, not flight legality. Re-run to refresh.</div>
+  <div class="foot">Fail toward caution. Anything unconfirmed counts as CHECK; a lost link is NO-GO. Reports sensor readiness, not flight legality. Re-run to refresh.
+    <div style="margin-top:8px">RedEdge and Altum are products of MicaSense (AgEagle). Independent tool, not affiliated with or endorsed by them.</div>
+    <div class="foot-bar"><span>&copy; 2026 SudoKodes LLC</span><span class="foot-prod">RedEdge Field Tools</span></div>
+  </div>
 </div></body></html>`;
 }
 
