@@ -25,7 +25,7 @@
 // Defaults. Editable on the device: open this script inside the Scriptable app
 // and choose Settings. Field use (Home Screen icon or widget) skips the menu
 // and runs the check directly. Settings persist in a local file.
-const DEMO = "";   // top-level demo for the widget: "" live, or go|sd|gps|warmup|dls|volts|rig|net|warn|down
+const DEMO = "";   // top-level demo for the widget: "" live, or go|sd|nosd|gps|pos|time|warmup|volts|dls|rig|warn|nogo|down
 
 const DEFAULTS = {
   cameraUrl: "http://192.168.10.254", // WiFi default; Ethernet 192.168.1.83
@@ -229,16 +229,20 @@ function demoSnap(kind) {
     version: { sw_version: "v7.1.0", serial: "RM02-1839163-SC" },
     network: { network_map: [{ device_type: "Camera", sd_status: "Ok", sw_version: "v7.1.0" }, { device_type: "DLS 2", sw_version: "v1.2.3" }] },
   };
-  const d = JSON.parse(JSON.stringify(base));
-  if (kind === "sd") { d.status.sd_gb_free = 0.7; d.status.sd_warn = true; }
-  if (kind === "gps") { d.status.gps_used_sats = 2; d.status.p_acc = 18.3; d.status.utc_time_valid = false; d.status.time_source = "None"; }
-  if (kind === "warmup") { d.status.dls_status = "Programming"; }
-  if (kind === "dls") { d.status.dls_status = "Error"; }
-  if (kind === "volts") { d.status.bus_volts = 3.9; }
-  if (kind === "net") { d.network.network_map = [{ device_type: "Camera", sd_status: "Ok", sw_version: "v7.1.0" }]; }
-  if (kind === "rig") { d.network.network_map = [{ device_type: "Camera", sd_status: "Ok", sw_version: "v7.1.0" }, { device_type: "Camera", sd_status: "Ok", sw_version: "v7.0.0" }, { device_type: "DLS 2", sw_version: "v1.2.3" }]; }
-  if (kind === "warn") { d.status.sd_gb_free = 0.7; d.status.sd_warn = true; d.status.bus_volts = 3.9; d.status.gps_used_sats = 4; }
   if (kind === "down") return { ok: false };
+  const d = JSON.parse(JSON.stringify(base));
+  const s = d.status;
+  if (kind === "sd") { s.sd_gb_free = 0.7; s.sd_warn = true; }
+  else if (kind === "nosd") { s.sd_status = "NotPresent"; }
+  else if (kind === "gps") { s.gps_used_sats = 4; }
+  else if (kind === "pos") { s.p_acc = 12.0; }
+  else if (kind === "time") { s.utc_time_valid = false; }
+  else if (kind === "warmup") { s.dls_status = "Programming"; }
+  else if (kind === "dls") { s.dls_status = "Error"; }
+  else if (kind === "volts") { s.bus_volts = 3.9; }
+  else if (kind === "rig") { d.network.network_map = [{ device_type: "Camera", sd_status: "Ok", sw_version: "v7.1.0" }, { device_type: "Camera", sd_status: "Ok", sw_version: "v7.0.0" }, { device_type: "DLS 2", sw_version: "v1.2.3" }]; }
+  else if (kind === "warn") { s.sd_gb_free = 0.7; s.sd_warn = true; s.bus_volts = 3.9; s.gps_used_sats = 4; }
+  else if (kind === "nogo") { s.sd_status = "NotPresent"; s.dls_status = "Error"; }
   return d;
 }
 
@@ -427,32 +431,41 @@ async function main() {
     const m = new Alert();
     m.title = "RedEdge Readiness";
     m.message = "Camera " + s.cameraUrl;
-    m.addAction("Check now");             // 0
-    m.addAction("Post-flight check");     // 1
-    m.addAction("Settings");              // 2
-    m.addAction("Demo: all clear");       // 3  go
-    m.addAction("Demo: low SD");          // 4  sd
-    m.addAction("Demo: no GPS");          // 5  gps
-    m.addAction("Demo: DLS warming up");  // 6  warmup
-    m.addAction("Demo: DLS error");       // 7  dls
-    m.addAction("Demo: low battery");     // 8  volts
-    m.addAction("Demo: rig mismatch");    // 9  rig
-    m.addAction("Demo: multiple warnings"); // 10 warn
-    m.addAction("Demo: no link");         // 11 down
+    m.addAction("Check now");          // 0
+    m.addAction("Post-flight check");  // 1
+    m.addAction("Settings");           // 2
+    m.addAction("Demos");              // 3
     m.addCancelAction("Cancel");
     const i = await m.presentSheet();
     if (i === -1) { Script.complete(); return; }
     if (i === 1) { result = await runPostflight(s); }
     else if (i === 2) { const ns = await editSettings(s); if (ns) s = ns; demoKind = ""; }
-    else if (i === 3) demoKind = "go";
-    else if (i === 4) demoKind = "sd";
-    else if (i === 5) demoKind = "gps";
-    else if (i === 6) demoKind = "warmup";
-    else if (i === 7) demoKind = "dls";
-    else if (i === 8) demoKind = "volts";
-    else if (i === 9) demoKind = "rig";
-    else if (i === 10) demoKind = "warn";
-    else if (i === 11) demoKind = "down";
+    else if (i === 3) {
+      // Second sheet: a demo readout for each readiness state, no camera needed.
+      const demos = [
+        ["All clear (GO)", "go"],
+        ["Low SD storage", "sd"],
+        ["Weak GPS fix", "gps"],
+        ["Poor position accuracy", "pos"],
+        ["Clock not valid", "time"],
+        ["DLS warming up", "warmup"],
+        ["Low supply voltage", "volts"],
+        ["Rig firmware mismatch", "rig"],
+        ["Multiple warnings", "warn"],
+        ["No SD card (NO-GO)", "nosd"],
+        ["DLS error (NO-GO)", "dls"],
+        ["Multiple blocking (NO-GO)", "nogo"],
+        ["No link (NO-GO)", "down"],
+      ];
+      const dm = new Alert();
+      dm.title = "Demo states";
+      dm.message = "Preview a readout. No camera needed.";
+      demos.forEach((row) => dm.addAction(row[0]));
+      dm.addCancelAction("Back");
+      const j = await dm.presentSheet();
+      if (j === -1) { Script.complete(); return; }
+      demoKind = demos[j][1];
+    }
     else demoKind = "";
   }
 
