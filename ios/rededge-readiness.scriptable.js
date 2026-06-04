@@ -323,12 +323,17 @@ function resolveTheme(s) {
 function buildHTML(res, theme) {
   const p = PALETTES[theme] || PALETTES.dark;
   const stamp = new Date().toLocaleTimeString([], { hour12: false });
+  // Escape any camera-derived text before it enters the WebView markup. A
+  // spoofed device on the open WiFi could otherwise inject markup via fields
+  // like firmware version, DLS status, or time source.
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const rows = res.checks.map((ck) => {
     const sc = p[ck.state] || p.UNKNOWN;
     return `<div class="check">
        <span class="dot" style="--c:${sc}"></span>
-       <div class="meta"><div class="label">${ck.label} <span class="tag" style="color:${sc}">${ck.state}</span></div><div class="note">${ck.note}</div></div>
-       <div class="read">${ck.read}${ck.unit ? ` <span class="u">${ck.unit}</span>` : ""}</div>
+       <div class="meta"><div class="label">${esc(ck.label)} <span class="tag" style="color:${sc}">${esc(ck.state)}</span></div><div class="note">${esc(ck.note)}</div></div>
+       <div class="read">${esc(ck.read)}${ck.unit ? ` <span class="u">${esc(ck.unit)}</span>` : ""}</div>
      </div>`;
   }).join("");
   const c = p[res.overall] || p.text;
@@ -369,7 +374,7 @@ function buildHTML(res, theme) {
   <div class="head"><div class="brand"><span class="r">RED</span>EDGE READINESS</div>
     <div class="stamp">checked ${stamp}</div></div>
   <div class="banner"><div class="state">${res.overall}</div>
-    <div class="reason">${res.reason}<div class="sub">${res.sub || ""}</div></div></div>
+    <div class="reason">${esc(res.reason)}<div class="sub">${esc(res.sub)}</div></div></div>
   <div class="checks">${rows}</div>
   <div class="foot">Fail toward caution. Anything unconfirmed counts as CHECK; a lost link is NO-GO. Reports sensor readiness, not flight legality. Re-run to refresh.</div>
 </div></body></html>`;
