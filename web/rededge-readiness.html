@@ -199,6 +199,24 @@
   .help-row .hk{flex:none;width:124px;color:var(--text);font-weight:500}
   .help-row .hv{flex:1;color:var(--muted)}
   .kbd{font-family:var(--mono);font-size:11.5px;background:var(--tagbg);color:var(--text);padding:1px 6px;border-radius:5px}
+  .prep-count{margin-left:8px;color:var(--faint);letter-spacing:0;text-transform:none}
+  .prep-intro{padding:12px 14px 4px;margin:0;font-size:12.5px;line-height:1.5;color:var(--muted)}
+  .prep-list{padding:4px 8px 8px}
+  .prep-item{display:flex;align-items:flex-start;gap:11px;padding:11px 10px;border-radius:9px;cursor:pointer;
+    transition:background .12s ease}
+  .prep-item:hover{background:var(--panel-2)}
+  .prep-item:focus-visible{outline:2px solid var(--go);outline-offset:1px}
+  .prep-item .cbox{flex:none;width:18px;height:18px;margin-top:1px;border-radius:5px;border:1.5px solid var(--line);
+    background:var(--bg);position:relative;transition:background .12s ease,border-color .12s ease}
+  .prep-item .ctext{font-size:13.5px;line-height:1.45;color:var(--text)}
+  .prep-item.done .cbox{background:var(--go);border-color:var(--go)}
+  .prep-item.done .cbox::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:10px;
+    border:solid #06231a;border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .prep-item.done .ctext{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--faint)}
+  .prep-airspace{margin:4px 14px 14px;padding:12px;border-radius:9px;background:var(--panel-2);
+    border:1px solid var(--line);font-size:12.5px;line-height:1.5;color:var(--muted)}
+  .prep-airspace b{color:var(--text);font-weight:600}
+  @media(prefers-reduced-motion:reduce){.prep-item,.prep-item .cbox{transition:none}}
 
   /* Narrow phones */
   @media (max-width:480px){
@@ -265,6 +283,7 @@
       <div class="link-pill" id="linkPill"><span class="link-dot"></span><span id="linkText">no link</span></div>
       <button class="icon-btn" id="themeBtn" title="Toggle light / dark" aria-label="Toggle light or dark theme">&#9728;</button>
       <button class="icon-btn" id="refreshBtn" title="Refresh now" aria-label="Refresh now">&#x21bb;</button>
+      <button class="icon-btn" id="prepBtn" title="Pre-flight prep" aria-label="Pre-flight prep checklist">&#9745;</button>
       <button class="icon-btn" id="helpBtn" title="How it works" aria-label="How it works">&#63;</button>
       <button class="icon-btn" id="gearBtn" title="Settings" aria-label="Open settings">&#9881;</button>
     </div>
@@ -346,6 +365,24 @@
       <div class="help-row"><span class="hk"><span class="kbd">&#9728;</span> / <span class="kbd">&#9790;</span></span><span class="hv">Toggle light and dark.</span></div>
       <div class="help-row"><span class="hk"><span class="kbd">&#x21bb;</span></span><span class="hv">Refresh now. Live mode also auto-refreshes on your poll interval.</span></div>
       <div class="help-row"><span class="hk"><span class="kbd">&#9881;</span></span><span class="hv">Settings: camera address, thresholds, poll interval.</span></div>
+    </div>
+  </div>
+
+  <div class="panel-box" id="prep" hidden>
+    <div class="panel-head">Pre-flight prep <span class="prep-count" id="prepCount"></span></div>
+    <p class="prep-intro">Manual steps the camera cannot report for itself. Tap each once done. Resets each session, so you re-verify every flight.</p>
+    <div class="prep-list" id="prepList">
+      <div class="prep-item" role="button" tabindex="0"><span class="cbox"></span><span class="ctext">Reflectance calibration panel captured, before and after the flight</span></div>
+      <div class="prep-item" role="button" tabindex="0"><span class="cbox"></span><span class="ctext">All lenses clean and unobstructed across every band</span></div>
+      <div class="prep-item" role="button" tabindex="0"><span class="cbox"></span><span class="ctext">DLS irradiance sensor clean, level, and with a clear view of the sky</span></div>
+      <div class="prep-item" role="button" tabindex="0"><span class="cbox"></span><span class="ctext">SD card formatted for the mission and firmly seated</span></div>
+      <div class="prep-item" role="button" tabindex="0"><span class="cbox"></span><span class="ctext">Firmware matched across all bands and cameras in the rig</span></div>
+      <div class="prep-item" role="button" tabindex="0"><span class="cbox"></span><span class="ctext">Camera mount secure, vibration isolation intact</span></div>
+      <div class="prep-item" role="button" tabindex="0"><span class="cbox"></span><span class="ctext">Capture interval and overlap set for the planned mission</span></div>
+      <div class="prep-item" role="button" tabindex="0"><span class="cbox"></span><span class="ctext">GPS lock acquired before launch</span></div>
+    </div>
+    <div class="prep-airspace">
+      <b>Airspace, LAANC, and TFRs are not checked here.</b> This tool covers sensor readiness only. For flight legality, check <a class="foot-link" href="https://uas-skycheck.app" target="_blank" rel="noopener">UAS SkyCheck &rarr;</a>
     </div>
   </div>
 
@@ -758,8 +795,18 @@ function fillSettings(){
   el("cfgPacc").value=cfg.pacc; el("cfgVolts").value=cfg.volts; el("cfgCams").value=cfg.cams;
   el("cfgPoll").value=cfg.poll; el("cfgFw").value=cfg.fw; el("cfgDls").checked=cfg.dls;
 }
-el("gearBtn").onclick=()=>{ const s=el("settings"); s.hidden=!s.hidden; if(!s.hidden){ el("help").hidden=true; fillSettings(); } };
-el("helpBtn").onclick=()=>{ const h=el("help"); h.hidden=!h.hidden; if(!h.hidden) el("settings").hidden=true; };
+el("gearBtn").onclick=()=>{ const s=el("settings"); s.hidden=!s.hidden; if(!s.hidden){ el("help").hidden=true; el("prep").hidden=true; fillSettings(); } };
+el("helpBtn").onclick=()=>{ const h=el("help"); h.hidden=!h.hidden; if(!h.hidden){ el("settings").hidden=true; el("prep").hidden=true; } };
+el("prepBtn").onclick=()=>{ const p=el("prep"); p.hidden=!p.hidden; if(!p.hidden){ el("help").hidden=true; el("settings").hidden=true; } };
+function updatePrepCount(){
+  const items=el("prepList").querySelectorAll(".prep-item");
+  const done=el("prepList").querySelectorAll(".prep-item.done").length;
+  el("prepCount").textContent=done+" of "+items.length;
+}
+function togglePrep(it){ it.classList.toggle("done"); updatePrepCount(); }
+el("prepList").addEventListener("click",e=>{ const it=e.target.closest(".prep-item"); if(it) togglePrep(it); });
+el("prepList").addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ const it=e.target.closest(".prep-item"); if(it){ e.preventDefault(); togglePrep(it); } } });
+updatePrepCount();
 function openSettings(){ el("help").hidden=true; el("settings").hidden=false; fillSettings(); el("settings").scrollIntoView({behavior:"smooth",block:"nearest"}); }
 el("hintSettings").onclick=openSettings;
 el("helpToSettings").onclick=openSettings;
