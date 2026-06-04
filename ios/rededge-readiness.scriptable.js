@@ -434,7 +434,7 @@ function buildHTML(res, theme, isDemo) {
   <div class="foot">Fail toward caution. Anything unconfirmed counts as CHECK; a lost link is NO-GO. Reports sensor readiness, not flight legality. Re-run to refresh.
     <div style="margin-top:8px">RedEdge and Altum are products of MicaSense (AgEagle). Independent tool, not affiliated with or endorsed by them.</div>
     <div style="margin-top:6px">From the makers of UAS SkyCheck.</div>
-    <div class="foot-bar"><span>&copy; 2026 SudoKodes LLC</span><span class="foot-prod">RedEdge Field Tools</span></div>
+    <div class="foot-bar"><span>&copy; 2026 SudoKodes LLC</span><span class="foot-prod">RedEdge Readiness</span></div>
   </div>
 <script>(function(){
   var prep=document.getElementById('prep'), h=document.getElementById('prepH');
