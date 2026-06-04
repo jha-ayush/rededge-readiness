@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/rededge-icon.png" alt="RedEdge Field Tools" width="104" height="104">
+</p>
+
 # RedEdge Field Tools
 
 Field readiness and capture tooling for the MicaSense RedEdge and Altum
