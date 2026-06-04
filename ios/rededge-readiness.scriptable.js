@@ -310,14 +310,14 @@ async function runPostflight(s) {
 // ----------------------------------------------------------------------------
 const PALETTES = {
   dark: {
-    bg: "#0a0c0e", panel: "#13171b", line: "#232a31", text: "#e7eef4",
-    muted: "#74828e", faint: "#4a555f", tagbg: "rgba(255,255,255,.05)",
-    GO: "#2fe39a", CHECK: "#f6b13e", "NO-GO": "#ff5a5a", UNKNOWN: "#5b6772",
+    bg: "#0c1014", panel: "#161b22", line: "#2a313b", text: "#eaf0f6",
+    muted: "#97a4b1", faint: "#6d7884", tagbg: "rgba(255,255,255,.06)",
+    GO: "#3be9a4", CHECK: "#f9bb4d", "NO-GO": "#ff6b6b", UNKNOWN: "#7e8c99",
   },
   light: {
-    bg: "#eef2f6", panel: "#ffffff", line: "#dde4ea", text: "#16212c",
-    muted: "#566370", faint: "#97a4af", tagbg: "rgba(20,40,60,.05)",
-    GO: "#0e9b69", CHECK: "#bd7a10", "NO-GO": "#d62f2f", UNKNOWN: "#8a97a3",
+    bg: "#eef1f5", panel: "#ffffff", line: "#dbe2e9", text: "#14202b",
+    muted: "#52606d", faint: "#7e8b98", tagbg: "rgba(20,40,60,.05)",
+    GO: "#0e9b69", CHECK: "#b9760f", "NO-GO": "#d62f2f", UNKNOWN: "#7d8a96",
   },
 };
 
