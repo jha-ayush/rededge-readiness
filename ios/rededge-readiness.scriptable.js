@@ -367,7 +367,7 @@ function buildHTML(res, theme, isDemo) {
   .wrap{max-width:760px;margin:0 auto}
   .head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
   .mark{width:30px;height:30px;flex:none}
-  .brand{font-weight:800;letter-spacing:.04em;font-size:14px;text-transform:uppercase}
+  .brand{font-weight:800;letter-spacing:.005em;font-size:15px}
   .brand .r{color:${p["NO-GO"]}}
   .stamp{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--faint)}
   .demo-badge{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--check);border:1px dashed var(--check);border-radius:6px;padding:2px 7px;margin-right:7px}
@@ -390,7 +390,7 @@ function buildHTML(res, theme, isDemo) {
   .read .u{color:var(--faint);font-size:11px}
   .foot{margin-top:18px;padding-top:13px;border-top:1px solid var(--line);font-size:11.5px;color:var(--faint);line-height:1.5}
   .foot-bar{display:flex;justify-content:space-between;gap:10px;margin-top:10px;padding-top:9px;border-top:1px solid var(--line);font-family:var(--mono);font-size:10.5px}
-  .foot-prod{color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  .foot-prod{color:var(--muted);letter-spacing:.02em}
   .prep{margin-top:14px;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
   .prep-h{padding:13px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:8px;cursor:pointer}
   .prep-h .pc{margin-left:auto;color:var(--faint);letter-spacing:0;text-transform:none}
@@ -409,7 +409,7 @@ function buildHTML(res, theme, isDemo) {
   .prep-air{margin:4px 14px 14px;padding:12px;border-radius:9px;background:var(--tagbg);border:1px solid var(--line);font-size:12px;line-height:1.45;color:var(--muted)}
   .prep-air b{color:var(--text)}.prep-air a{color:var(--text)}
 </style></head><body><div class="wrap">
-  <div class="head"><svg class="mark" viewBox="0 0 36 36" aria-hidden="true"><path d="M 19.31 3.06 A 15 15 0 0 1 32.00 12.62" stroke="#4d8df0" stroke-width="3.6" fill="none" stroke-linecap="round"/><path d="M 32.72 15.14 A 15 15 0 0 1 27.03 29.98" stroke="#2fe39a" stroke-width="3.6" fill="none" stroke-linecap="round"/><path d="M 24.81 31.37 A 15 15 0 0 1 8.97 29.98" stroke="#ff5a5a" stroke-width="3.6" fill="none" stroke-linecap="round"/><path d="M 7.03 28.23 A 15 15 0 0 1 4.00 12.62" stroke="#f6943e" stroke-width="3.6" fill="none" stroke-linecap="round"/><path d="M 5.14 10.27 A 15 15 0 0 1 19.31 3.06" stroke="#b06cf0" stroke-width="3.6" fill="none" stroke-linecap="round"/><circle cx="18" cy="18" r="8" fill="none" stroke="#2fe39a" stroke-width="2" opacity="0.5"/><circle cx="18" cy="18" r="3.4" fill="#2fe39a"/></svg><div class="brand"><span class="r">RED</span>EDGE READINESS</div>
+  <div class="head"><svg class="mark" viewBox="0 0 36 36" aria-hidden="true"><path d="M 19.31 3.06 A 15 15 0 0 1 32.00 12.62" stroke="#4d8df0" stroke-width="3.6" fill="none" stroke-linecap="round"/><path d="M 32.72 15.14 A 15 15 0 0 1 27.03 29.98" stroke="#2fe39a" stroke-width="3.6" fill="none" stroke-linecap="round"/><path d="M 24.81 31.37 A 15 15 0 0 1 8.97 29.98" stroke="#ff5a5a" stroke-width="3.6" fill="none" stroke-linecap="round"/><path d="M 7.03 28.23 A 15 15 0 0 1 4.00 12.62" stroke="#f6943e" stroke-width="3.6" fill="none" stroke-linecap="round"/><path d="M 5.14 10.27 A 15 15 0 0 1 19.31 3.06" stroke="#b06cf0" stroke-width="3.6" fill="none" stroke-linecap="round"/><circle cx="18" cy="18" r="8" fill="none" stroke="#2fe39a" stroke-width="2" opacity="0.5"/><circle cx="18" cy="18" r="3.4" fill="#2fe39a"/></svg><div class="brand"><span class="r">Red</span>Edge Readiness</div>
     <div class="stamp">${isDemo ? '<span class="demo-badge">DEMO</span>' : ''}${stamp}</div></div>
   <div class="banner"><div class="state">${res.overall}</div>
     <div class="reason">${esc(res.reason)}<div class="sub">${esc(res.sub)}</div></div></div>
