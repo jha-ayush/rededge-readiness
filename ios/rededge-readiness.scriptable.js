@@ -337,9 +337,9 @@ function resolveTheme(s) {
   catch (e) { return "dark"; }
 }
 
-function buildHTML(res, theme) {
+function buildHTML(res, theme, isDemo) {
   const p = PALETTES[theme] || PALETTES.dark;
-  const stamp = new Date().toLocaleTimeString([], { hour12: false });
+  const stamp = isDemo ? "demo data, not live" : ("checked " + new Date().toLocaleTimeString([], { hour12: false }));
   // Escape any camera-derived text before it enters the WebView markup. A
   // spoofed device on the open WiFi could otherwise inject markup via fields
   // like firmware version, DLS status, or time source.
@@ -370,6 +370,7 @@ function buildHTML(res, theme) {
   .brand{font-weight:800;letter-spacing:.04em;font-size:14px;text-transform:uppercase}
   .brand .r{color:${p["NO-GO"]}}
   .stamp{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--faint)}
+  .demo-badge{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--check);border:1px dashed var(--check);border-radius:6px;padding:2px 7px;margin-right:7px}
   .banner{position:relative;border-radius:16px;padding:24px 20px;border:1px solid var(--state);
     background:var(--panel);overflow:hidden;box-shadow:var(--shadow)}
   .banner::before{content:"";position:absolute;inset:0;opacity:.12;
@@ -409,7 +410,7 @@ function buildHTML(res, theme) {
   .prep-air b{color:var(--text)}.prep-air a{color:var(--text)}
 </style></head><body><div class="wrap">
   <div class="head"><svg class="mark" viewBox="0 0 36 36" aria-hidden="true"><path d="M 19.31 3.06 A 15 15 0 0 1 32.00 12.62" stroke="#4d8df0" stroke-width="3.6" fill="none" stroke-linecap="round"/><path d="M 32.72 15.14 A 15 15 0 0 1 27.03 29.98" stroke="#2fe39a" stroke-width="3.6" fill="none" stroke-linecap="round"/><path d="M 24.81 31.37 A 15 15 0 0 1 8.97 29.98" stroke="#ff5a5a" stroke-width="3.6" fill="none" stroke-linecap="round"/><path d="M 7.03 28.23 A 15 15 0 0 1 4.00 12.62" stroke="#f6943e" stroke-width="3.6" fill="none" stroke-linecap="round"/><path d="M 5.14 10.27 A 15 15 0 0 1 19.31 3.06" stroke="#b06cf0" stroke-width="3.6" fill="none" stroke-linecap="round"/><circle cx="18" cy="18" r="8" fill="none" stroke="#2fe39a" stroke-width="2" opacity="0.5"/><circle cx="18" cy="18" r="3.4" fill="#2fe39a"/></svg><div class="brand"><span class="r">RED</span>EDGE READINESS</div>
-    <div class="stamp">checked ${stamp}</div></div>
+    <div class="stamp">${isDemo ? '<span class="demo-badge">DEMO</span>' : ''}${stamp}</div></div>
   <div class="banner"><div class="state">${res.overall}</div>
     <div class="reason">${esc(res.reason)}<div class="sub">${esc(res.sub)}</div></div></div>
   <div class="checks">${rows}</div>
@@ -529,7 +530,7 @@ async function main() {
 
   if (!result) result = evaluate(await snapshot(s, demoKind), s);
   const wv = new WebView();
-  await wv.loadHTML(buildHTML(result, resolveTheme(s)));
+  await wv.loadHTML(buildHTML(result, resolveTheme(s), !!demoKind));
   await wv.present(true);
   Script.complete();
 }
