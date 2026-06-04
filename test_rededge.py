@@ -46,13 +46,21 @@ def mock_server(scenario):
         httpd.server_close()
 
 
-# scenario -> (cfg overrides, expected overall)
+# scenario -> (cfg overrides, expected overall). Mirrors the shared web/iOS
+# demo set; this also cross-checks that the Python evaluation agrees with them.
 CASES = {
-    "healthy": ({}, "GO"),
-    "lowsd": ({}, "CHECK"),
-    "nogps": ({}, "CHECK"),
-    "dlserror": ({}, "NO-GO"),
-    "badfw": ({"fw": "v7.1.0"}, "CHECK"),
+    "go": ({}, "GO"),
+    "sd": ({}, "CHECK"),
+    "nosd": ({}, "NO-GO"),
+    "gps": ({}, "CHECK"),
+    "pos": ({}, "CHECK"),
+    "time": ({}, "CHECK"),
+    "warmup": ({}, "CHECK"),
+    "volts": ({}, "CHECK"),
+    "rig": ({}, "CHECK"),
+    "warn": ({}, "CHECK"),
+    "dls": ({}, "NO-GO"),
+    "nogo": ({}, "NO-GO"),
 }
 
 
@@ -78,7 +86,7 @@ class ReadinessOverLiveHTTP(unittest.TestCase):
 
 class Offload(unittest.TestCase):
     def test_pull_then_resume(self):
-        with mock_server("healthy") as url:
+        with mock_server("go") as url:
             client = rededge.RedEdgeClient(url, 2.0)
             with tempfile.TemporaryDirectory() as d:
                 with contextlib.redirect_stdout(io.StringIO()):
@@ -132,7 +140,7 @@ class ConfigPrecedence(unittest.TestCase):
 
 class Verify(unittest.TestCase):
     def test_counts_against_mock(self):
-        with mock_server("healthy") as url:
+        with mock_server("go") as url:
             client = rededge.RedEdgeClient(url, 2.0)
             info = rededge.count_captures(client)
             self.assertEqual(info["captures"], 1)
