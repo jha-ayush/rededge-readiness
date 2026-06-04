@@ -76,15 +76,18 @@
   .link-dot{width:7px;height:7px;border-radius:50%;background:var(--unknown);transition:background var(--ease),box-shadow var(--ease)}
   .link-pill.up .link-dot{background:var(--go);box-shadow:0 0 8px var(--go)}
   .link-pill.down .link-dot{background:var(--nogo);box-shadow:0 0 8px var(--nogo)}
+  .link-pill.demo{border-style:dashed;border-color:var(--check)}
+  .link-pill.demo .link-dot{background:var(--check);box-shadow:0 0 8px var(--check)}
   .icon-btn{
     background:var(--panel);border:1px solid var(--line);color:var(--muted);
-    width:42px;height:42px;border-radius:11px;cursor:pointer;font-size:17px;line-height:1;
+    width:44px;height:44px;border-radius:11px;cursor:pointer;font-size:17px;line-height:1;
     display:grid;place-items:center;box-shadow:var(--shadow);
     transition:background-color var(--ease),border-color var(--ease),color var(--ease),transform .1s;
     -webkit-tap-highlight-color:transparent;
   }
   .icon-btn:hover{color:var(--text);border-color:var(--faint)}
   .icon-btn:active{transform:scale(.94)}
+  .icon-btn:focus-visible{outline:2px solid var(--go);outline-offset:2px}
 
   /* Source selector */
   .topbar{display:flex;align-items:center;gap:10px;margin-bottom:12px}
@@ -95,6 +98,9 @@
     box-shadow:var(--shadow);transition:background-color var(--ease),border-color var(--ease),color var(--ease);
   }
   .topbar select:focus{outline:none;border-color:var(--faint)}
+  .topbar select:focus-visible{outline:2px solid var(--go);outline-offset:2px}
+  .demo-badge{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.14em;
+    color:var(--check);border:1px dashed var(--check);border-radius:6px;padding:3px 8px;white-space:nowrap}
 
   /* Status banner */
   .banner{
@@ -307,10 +313,10 @@
     <label class="src-label" for="source">Source</label>
     <select id="source" title="Data source">
       <option value="live">Live camera</option>
-      <optgroup label="Demo \u2014 ready">
+      <optgroup label="Demo: ready">
         <option value="demo-go">All clear (GO)</option>
       </optgroup>
-      <optgroup label="Demo \u2014 needs attention">
+      <optgroup label="Demo: needs attention">
         <option value="demo-sd">Low SD storage</option>
         <option value="demo-gps">Weak GPS fix</option>
         <option value="demo-pos">Poor position accuracy</option>
@@ -320,7 +326,7 @@
         <option value="demo-rig">Rig firmware mismatch</option>
         <option value="demo-warn">Multiple warnings</option>
       </optgroup>
-      <optgroup label="Demo \u2014 do not fly">
+      <optgroup label="Demo: do not fly">
         <option value="demo-nosd">No SD card</option>
         <option value="demo-dls">DLS error</option>
         <option value="demo-nogo">Multiple blocking issues</option>
@@ -332,6 +338,7 @@
   <div class="banner" id="banner" data-s="UNKNOWN" role="status" aria-live="polite">
     <div class="banner-row">
       <div class="state-word" id="stateWord">...</div>
+      <span class="demo-badge" id="demoBadge" hidden>DEMO</span>
       <div class="pulse"></div>
     </div>
     <div class="reason"><span id="reasonMain">Connect to the camera WiFi and choose a source.</span><div class="sub" id="reasonSub"></div></div>
@@ -721,10 +728,11 @@ function render(res){
     node.className="check enter";
     node.setAttribute("role","button");
     node.setAttribute("tabindex","0");
+    node.setAttribute("aria-expanded","false");
     node.innerHTML='<span class="dot"></span><div class="meta"><div class="label">'
       +'<span class="lbl"></span> <span class="tag"></span><span class="caret">\u203a</span></div>'
       +'<div class="note"></div><div class="desc"></div></div><div class="read"><span class="rv"></span><span class="u"></span></div>';
-    const toggle=()=>node.classList.toggle("open");
+    const toggle=()=>{ const open=node.classList.toggle("open"); node.setAttribute("aria-expanded", open?"true":"false"); };
     node.addEventListener("click",toggle);
     node.addEventListener("keydown",(e)=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); toggle(); } });
     box.appendChild(node);
@@ -748,8 +756,14 @@ function render(res){
 function setText(node,t){ if(node.textContent!==t) node.textContent=t; }
 function setLink(up){
   const p=el("linkPill");
+  p.classList.remove("demo");
   p.classList.toggle("up",up); p.classList.toggle("down",!up);
   el("linkText").textContent=up?"linked":"no link";
+}
+function setLinkDemo(){
+  const p=el("linkPill");
+  p.classList.remove("up","down"); p.classList.add("demo");
+  el("linkText").textContent="demo";
 }
 function stamp(){
   lastStampAt=Date.now();
@@ -757,9 +771,13 @@ function stamp(){
 }
 let lastStampAt=0, nextAt=0;
 function paintStatus(){
+  if(el("source").value!=="live"){
+    el("updatedText").textContent="demo data \u00b7 not a live reading";
+    return;
+  }
   const t=new Date(lastStampAt||Date.now());
   let line="updated "+t.toLocaleTimeString([], {hour12:false});
-  if(el("source").value==="live" && nextAt){
+  if(nextAt){
     const secs=Math.max(0,Math.ceil((nextAt-Date.now())/1000));
     line+=" \u00b7 next in "+secs+"s";
   }
@@ -783,10 +801,12 @@ async function tick(){
   if(busy) return; busy=true;
   el("refreshBtn").classList.add("spin");
   const src=el("source").value;
+  const isDemo = src!=="live";
   let d;
   if(src==="live"){ d=await readLive(cfg); }
   else { d=demo(src); }
-  setLink(!!d.ok);
+  if(isDemo) setLinkDemo(); else setLink(!!d.ok);
+  el("demoBadge").hidden = !isDemo;
   render(evaluate(d,cfg));
   // Contextual help only when trying Live and the camera is unreachable.
   el("hint").hidden = !(src==="live" && !d.ok);
