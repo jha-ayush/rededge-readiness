@@ -1,4 +1,4 @@
-# RedEdge Field Tools, Operating Guide
+# RedEdge Readiness, Operating Guide
 
 One page covering the whole system: what each piece is for, and the day-to-day
 flow from pre-flight to post-flight. For repo and install detail see `README.md`.
