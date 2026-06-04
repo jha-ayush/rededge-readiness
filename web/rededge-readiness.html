@@ -269,7 +269,7 @@
       <div class="state-word" id="stateWord">...</div>
       <div class="pulse"></div>
     </div>
-    <div class="reason" id="reason">Connect to the camera WiFi and choose a source.</div>
+    <div class="reason"><span id="reasonMain">Connect to the camera WiFi and choose a source.</span><div class="sub" id="reasonSub"></div></div>
     <div class="updated"><span id="updatedText">awaiting first read</span></div>
   </div>
 
@@ -602,7 +602,10 @@ function render(res){
     el("stateWord").textContent=res.overall;
     b.classList.remove("flash"); void b.offsetWidth; b.classList.add("flash");
   }
-  el("reason").innerHTML=res.reason+(res.sub?'<div class="sub">'+res.sub+'</div>':'');
+  setText(el("reasonMain"), res.reason);
+  const subEl=el("reasonSub");
+  setText(subEl, res.sub||"");
+  subEl.style.display = res.sub ? "" : "none";
 
   const box=el("checks");
   const rows=res.checks;
@@ -615,7 +618,7 @@ function render(res){
     node.setAttribute("tabindex","0");
     node.innerHTML='<span class="dot"></span><div class="meta"><div class="label">'
       +'<span class="lbl"></span> <span class="tag"></span><span class="caret">\u203a</span></div>'
-      +'<div class="note"></div><div class="desc"></div></div><div class="read"></div>';
+      +'<div class="note"></div><div class="desc"></div></div><div class="read"><span class="rv"></span><span class="u"></span></div>';
     const toggle=()=>node.classList.toggle("open");
     node.addEventListener("click",toggle);
     node.addEventListener("keydown",(e)=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); toggle(); } });
@@ -633,9 +636,8 @@ function render(res){
     setText(node.querySelector(".lbl"), ck.label);
     setText(node.querySelector(".note"), ck.note||"");
     setText(node.querySelector(".desc"), checkDetail(ck.label, cfg));
-    const readEl=node.querySelector(".read");
-    const html=ck.read+(ck.unit?' <span class="u">'+ck.unit+'</span>':'');
-    if(readEl.innerHTML!==html) readEl.innerHTML=html;
+    setText(node.querySelector(".rv"), ck.read);
+    setText(node.querySelector(".u"), ck.unit||"");
   }
 }
 function setText(node,t){ if(node.textContent!==t) node.textContent=t; }
