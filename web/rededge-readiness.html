@@ -255,12 +255,25 @@
     <label class="src-label" for="source">Source</label>
     <select id="source" title="Data source">
       <option value="live">Live camera</option>
-      <option value="demo-go">Demo: all clear</option>
-      <option value="demo-sd">Demo: low storage</option>
-      <option value="demo-gps">Demo: no GPS fix</option>
-      <option value="demo-dls">Demo: DLS error</option>
-      <option value="demo-net">Demo: camera offline</option>
-      <option value="demo-down">Demo: no link</option>
+      <optgroup label="Demo \u2014 ready">
+        <option value="demo-go">All clear (GO)</option>
+      </optgroup>
+      <optgroup label="Demo \u2014 needs attention">
+        <option value="demo-sd">Low SD storage</option>
+        <option value="demo-gps">Weak GPS fix</option>
+        <option value="demo-pos">Poor position accuracy</option>
+        <option value="demo-time">Clock not valid</option>
+        <option value="demo-warmup">DLS warming up</option>
+        <option value="demo-volts">Low supply voltage</option>
+        <option value="demo-rig">Rig firmware mismatch</option>
+        <option value="demo-warn">Multiple warnings</option>
+      </optgroup>
+      <optgroup label="Demo \u2014 do not fly">
+        <option value="demo-nosd">No SD card</option>
+        <option value="demo-dls">DLS error</option>
+        <option value="demo-nogo">Multiple blocking issues</option>
+        <option value="demo-down">No link</option>
+      </optgroup>
     </select>
   </div>
 
@@ -565,12 +578,24 @@ const DEMO={
   }
 };
 function demo(kind){
-  const d=JSON.parse(JSON.stringify(DEMO.base)); d.ok=true;
-  if(kind==="demo-sd"){d.status.sd_gb_free=0.7;d.status.sd_warn=true;}
-  if(kind==="demo-gps"){d.status.gps_used_sats=2;d.status.p_acc=18.3;d.status.utc_time_valid=false;d.status.time_source="None";}
-  if(kind==="demo-dls"){d.status.dls_status="Error";}
-  if(kind==="demo-net"){d.network.network_map=[{device_type:"Camera",sd_status:"Ok",sw_version:"v7.1.0"}];}
-  if(kind==="demo-down"){return {ok:false,error:"demo offline"};}
+  if(kind==="demo-down") return {ok:false,error:"demo offline"};
+  const d=JSON.parse(JSON.stringify(DEMO.base)); d.ok=true; const s=d.status;
+  switch(kind){
+    case "demo-sd": s.sd_gb_free=0.7; s.sd_warn=true; break;
+    case "demo-nosd": s.sd_status="NotPresent"; break;
+    case "demo-gps": s.gps_used_sats=4; break;
+    case "demo-pos": s.p_acc=12.0; break;
+    case "demo-time": s.utc_time_valid=false; break;
+    case "demo-warmup": s.dls_status="Programming"; break;
+    case "demo-dls": s.dls_status="Error"; break;
+    case "demo-volts": s.bus_volts=3.9; break;
+    case "demo-rig": d.network.network_map=[
+      {device_type:"Camera",sd_status:"Ok",sw_version:"v7.1.0"},
+      {device_type:"Camera",sd_status:"Ok",sw_version:"v7.0.0"},
+      {device_type:"DLS 2",sw_version:"v1.2.3"}]; break;
+    case "demo-warn": s.sd_gb_free=0.7; s.sd_warn=true; s.bus_volts=3.9; s.gps_used_sats=4; break;
+    case "demo-nogo": s.sd_status="NotPresent"; s.dls_status="Error"; break;
+  }
   return d;
 }
 
@@ -725,7 +750,7 @@ el("source").onchange=()=>{ saveCfg(cfg); tick(); schedule(); };
 el("themeBtn").onclick=()=>{ applyTheme(currentTheme()==="dark"?"light":"dark"); saveCfg(cfg); };
 
 /* ---------- boot ---------- */
-const VALID_SOURCES=["live","demo-go","demo-sd","demo-gps","demo-dls","demo-net","demo-down"];
+const VALID_SOURCES=["live","demo-go","demo-sd","demo-nosd","demo-gps","demo-pos","demo-time","demo-warmup","demo-volts","demo-rig","demo-warn","demo-dls","demo-nogo","demo-down"];
 const params=new URLSearchParams(location.search);
 const wantTheme=params.get("theme");
 const sysLight=window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
