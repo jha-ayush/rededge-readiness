@@ -156,5 +156,82 @@ class Verify(unittest.TestCase):
         self.assertEqual(info["sets"], 0)
 
 
+class Robustness(unittest.TestCase):
+    """Malformed, partial, and wrong-type camera responses must never crash and
+    must never produce a false GO. Anything unconfirmable fails toward caution."""
+
+    def _overall(self, snap):
+        return rededge.evaluate(snap, base_cfg())["overall"]
+
+    def test_malformed_does_not_crash_and_never_false_go(self):
+        good = {"sd_status": "Ok", "sd_gb_free": 20.0, "bus_volts": 4.7,
+                "gps_used_sats": 9, "p_acc": 2.0, "dls_status": "Ok",
+                "utc_time_valid": True}
+        bad_snapshots = [
+            {"ok": True, "status": "not-a-dict", "version": {}, "network": None},
+            {"ok": True, "status": ["list"], "version": None, "network": None},
+            {"ok": True, "status": None, "version": None, "network": None},
+            {"ok": True, "status": {}, "version": {}, "network": None},
+            {"ok": True, "status": {**good, "sd_status": "Garbled"}},
+            {"ok": True, "status": {**good, "dls_status": "Weird"}},
+            {"ok": True, "status": {**good, "sd_gb_free": "twenty"}},
+            {"ok": True, "status": {**good, "bus_volts": None}},
+            {"ok": True, "status": {**good, "gps_used_sats": None}},
+            {"ok": True, "status": good, "version": "not-a-dict", "network": "nope"},
+            {"ok": True, "status": good, "network": {"network_map": "not-a-list"}},
+        ]
+        for snap in bad_snapshots:
+            with self.subTest(snap=snap):
+                res = rededge.evaluate(snap, base_cfg())   # must not raise
+                self.assertIn(res["overall"], ("GO", "CHECK", "NO-GO"))
+
+    def test_unrecognized_status_is_not_go(self):
+        good = {"sd_status": "Ok", "sd_gb_free": 20.0, "bus_volts": 4.7,
+                "gps_used_sats": 9, "p_acc": 2.0, "dls_status": "Ok",
+                "utc_time_valid": True}
+        # An unrecognized SD or DLS state must not read GO.
+        self.assertNotEqual(
+            self._overall({"ok": True, "status": {**good, "sd_status": "Garbled"}}), "GO")
+        self.assertNotEqual(
+            self._overall({"ok": True, "status": {**good, "dls_status": "Weird"}}), "GO")
+        # Empty/missing status cannot be a clear pass.
+        self.assertNotEqual(self._overall({"ok": True, "status": {}}), "GO")
+
+    def test_missing_version_degrades_to_check_not_nogo(self):
+        # A reachable camera with a good /status but absent /version should still
+        # evaluate (firmware unconfirmed -> CHECK), not collapse to no-link NO-GO.
+        good = {"sd_status": "Ok", "sd_gb_free": 20.0, "bus_volts": 4.7,
+                "gps_used_sats": 9, "p_acc": 2.0, "dls_status": "Ok",
+                "utc_time_valid": True}
+        res = rededge.evaluate({"ok": True, "status": good, "version": None,
+                                "network": None}, base_cfg())
+        self.assertEqual(res["overall"], "CHECK")
+
+    def test_snapshot_requires_valid_status(self):
+        # status read succeeds but returns junk -> treated as no link (NO-GO).
+        class JunkStatusClient:
+            def status(self): return "totally not json"
+            def version(self): return {"sw_version": "v7.1.0"}
+            def networkstatus(self): return {"network_map": []}
+        snap = rededge.snapshot(JunkStatusClient())
+        self.assertFalse(snap.get("ok"))
+        self.assertEqual(rededge.evaluate(snap, base_cfg())["overall"], "NO-GO")
+
+    def test_snapshot_tolerates_secondary_endpoint_failure(self):
+        # /status fine, /version and /networkstatus raise -> still ok, version/net None.
+        good = {"sd_status": "Ok", "sd_gb_free": 20.0, "bus_volts": 4.7,
+                "gps_used_sats": 9, "p_acc": 2.0, "dls_status": "Ok",
+                "utc_time_valid": True}
+
+        class FlakyClient:
+            def status(self): return good
+            def version(self): raise rededge.RedEdgeError("boom")
+            def networkstatus(self): raise rededge.RedEdgeError("boom")
+        snap = rededge.snapshot(FlakyClient())
+        self.assertTrue(snap.get("ok"))
+        self.assertIsNone(snap.get("version"))
+        self.assertEqual(rededge.evaluate(snap, base_cfg())["overall"], "CHECK")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
