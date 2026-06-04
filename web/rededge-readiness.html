@@ -447,7 +447,9 @@ function evaluate(d, c){
       sub:"Confirm you are joined to the camera WiFi and the base URL is correct.",
       checks:[{label:"Camera link",read:"down",state:"NO-GO",note:"No response from "+c.url}]};
   }
-  const s=d.status||{}, net=d.network, ver=d.version||{};
+  const s=(d.status&&typeof d.status==="object")?d.status:{},
+        net=d.network,
+        ver=(d.version&&typeof d.version==="object")?d.version:{};
   const out=[];
 
   // SD card
@@ -458,7 +460,7 @@ function evaluate(d, c){
     else if(st==="Full"){state="NO-GO";note="card full, offload before flight";}
     else if(s.sd_warn){state="CHECK";note="low-space warning or unrecommended filesystem";}
     else if(typeof free==="number" && free<c.sd){state="CHECK";note="below "+c.sd+" GB headroom";}
-    else if(st===undefined){state="UNKNOWN";note="card status not reported";}
+    else if(st!=="Ok"){state="UNKNOWN";note=(st===undefined?"card status not reported":"unrecognized card status");}
     out.push({label:"SD storage",
       read:(typeof free==="number"?free.toFixed(1):"--"),unit:"GB free",state,note});
   })();
@@ -494,7 +496,7 @@ function evaluate(d, c){
     if(dls==="Error"){state="NO-GO";note="DLS error, reflectance data unreliable";}
     else if(dls==="NotPresent"){state=c.dls?"CHECK":"GO";note=c.dls?"no DLS, reflectance calibration limited":"no DLS (not required)";}
     else if(dls==="Programming"||dls==="Initializing"){state="CHECK";note="DLS warming up, wait";}
-    else if(dls===undefined){state="UNKNOWN";note="DLS state not reported";}
+    else if(dls!=="Ok"){state="UNKNOWN";note=(dls===undefined?"DLS state not reported":"unrecognized DLS state");}
     out.push({label:"Light sensor",read:(dls||"--"),unit:"",state,note});
   })();
 
@@ -565,11 +567,13 @@ async function readLive(c){
   const ctrl=new AbortController();
   const t=setTimeout(()=>ctrl.abort(),2500);
   try{
-    const [status,version]=await Promise.all([
-      fetchJSON(c.url,"/status",ctrl.signal),
-      fetchJSON(c.url,"/version",ctrl.signal)
-    ]);
-    let network=null;
+    // /status is the critical read. If it fails or is not an object, that is a
+    // no-link NO-GO. /version and /networkstatus are best-effort: a flaky
+    // secondary endpoint degrades only its own check, not the whole readout.
+    const status=await fetchJSON(c.url,"/status",ctrl.signal);
+    if(!status||typeof status!=="object") return {ok:false,error:"malformed status"};
+    let version=null, network=null;
+    try{ version=await fetchJSON(c.url,"/version",ctrl.signal); }catch(_){ }
     try{ network=await fetchJSON(c.url,"/networkstatus",ctrl.signal); }catch(_){ }
     return {ok:true,status,version,network};
   }catch(e){
