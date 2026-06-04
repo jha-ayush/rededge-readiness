@@ -317,9 +317,9 @@ async function runPostflight(s) {
 // ----------------------------------------------------------------------------
 const PALETTES = {
   dark: {
-    bg: "#0c1014", panel: "#161b22", line: "#2a313b", text: "#eaf0f6",
-    muted: "#97a4b1", faint: "#6d7884", tagbg: "rgba(255,255,255,.06)",
-    GO: "#3be9a4", CHECK: "#f9bb4d", "NO-GO": "#ff6b6b", UNKNOWN: "#7e8c99",
+    bg: "#0f141b", panel: "#1a212b", line: "#303945", text: "#e9eff5",
+    muted: "#9aa7b4", faint: "#7c8896", tagbg: "rgba(255,255,255,.06)",
+    GO: "#3be9a4", CHECK: "#f9bb4d", "NO-GO": "#ff6b6b", UNKNOWN: "#8593a0",
   },
   light: {
     bg: "#eef1f5", panel: "#ffffff", line: "#dbe2e9", text: "#14202b",
