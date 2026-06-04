@@ -131,3 +131,12 @@ Defaults are sensible starting points, not vendor spec. The minimum supply
 voltage in particular is a placeholder; set it against your own power setup
 before trusting it. Adjust thresholds in `rededge.json` for the Python tool, or
 in the Settings menu for the iPhone script.
+
+## About
+
+RedEdge Field Tools is built and maintained by SudoKodes LLC.
+
+RedEdge and Altum are products of MicaSense (AgEagle). This is an independent
+tool and is not affiliated with, sponsored by, or endorsed by them.
+
+&copy; 2026 SudoKodes LLC. All rights reserved.
