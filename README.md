@@ -19,6 +19,18 @@ since a browser on HTTPS cannot reach the camera's local plain-HTTP endpoint
 iPhone script or the Python tool. Append `?source=demo-go` (or any demo state)
 and `&theme=light` to share a specific preview.
 
+## In the field
+
+The day-to-day flow, start to finish:
+
+1. **Join the camera WiFi.** Every tool that reads the camera must be on its network.
+2. **Pre-flight readiness.** On the iPhone, tap the Home Screen icon or run Check now; on a computer, `python3 rededge.py check`. Resolve anything that reads CHECK or NO-GO before flying.
+3. **Pre-flight prep.** Work the manual Pre-flight prep checklist in the app: reflectance panel captured, lenses and DLS clean, mount secure, firmware matched, capture interval set, GPS lock. For airspace, LAANC, and TFRs, check [UAS SkyCheck](https://uas-skycheck.app); this tool does not cover flight legality.
+4. **Fly.**
+5. **Post-flight.** Confirm captures landed with `verify` (or Post-flight check on the phone), then `offload` the imagery.
+
+[OPERATING.md](OPERATING.md) has the one-page version to keep on hand.
+
 ## The constraint that shapes everything
 
 The camera is a local device. It serves plain HTTP JSON at `192.168.10.254`
@@ -62,6 +74,8 @@ Open the script inside the Scriptable app to get a menu with Check now,
 Post-flight check, Settings, and a Demos submenu of preview states. Settings
 edits the camera URL and all thresholds on the device and persists them; no code
 editing needed. A Home Screen icon or widget skips the menu and checks directly.
+The readout also carries a collapsible Pre-flight prep checklist and a link to
+UAS SkyCheck for the airspace side.
 
 ## Computer (offload, capture, web UI)
 
@@ -117,6 +131,12 @@ camera URL at that machine's address.
 SD storage, GPS fix, position accuracy, light sensor (DLS), supply voltage,
 time source, the multi-camera rig, and firmware. The worst check sets the
 overall state. All tools share the same logic and thresholds.
+
+Beyond these automated reads, the web page and the iPhone readout include a
+manual **Pre-flight prep** checklist for the steps the camera cannot report for
+itself: reflectance panel captured, lenses and DLS clean, mount secure, firmware
+matched across the rig, capture interval set, and GPS lock. Airspace, LAANC, and
+TFRs are out of scope by design; both link to UAS SkyCheck for flight legality.
 
 ## Security
 
