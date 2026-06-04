@@ -30,10 +30,12 @@ That is why the everyday field tool is the native iOS script, not a website.
 | Path | What it is |
 | --- | --- |
 | `ios/rededge-readiness.scriptable.js` | iPhone field tool. Paste into the Scriptable app. Native camera read, full-screen readout, Home Screen widget, on-device settings. This is the everyday tool. |
-| `rededge.py` | Zero-dependency Python client and CLI for a computer or Pi joined to the camera WiFi: `check`, `watch`, `status`, `offload`, `capture`, `serve`, `init-config`. |
+| `rededge.py` | Zero-dependency Python client and CLI for a computer or Pi joined to the camera WiFi: `check`, `watch`, `status`, `offload`, `verify`, `capture`, `serve`, `init-config`. |
 | `rededge_mock.py` | Zero-dependency mock camera for testing the tools end to end without hardware. |
 | `web/rededge-readiness.html` | Responsive web version. Demo and review on any device. Live use needs the local proxy in `rededge.py serve`, so it is a computer tool. |
+| `web/_headers` | Security headers (Content-Security-Policy and more) applied to the hosted page on Cloudflare. |
 | `rededge.example.json` | Template for the shared config schema. Copy to `rededge.json` and edit. |
+| `OPERATING.md` | One-page operating guide: the day-to-day pre-flight and post-flight flow. |
 | `.gitignore` | Keeps Python artifacts and offloaded imagery out of the repo. |
 
 ## iPhone (everyday use)
@@ -46,9 +48,9 @@ That is why the everyday field tool is the native iOS script, not a website.
    refresh.
 
 Open the script inside the Scriptable app to get a menu with Check now,
-Settings, and demo states. Settings edits the camera URL and all thresholds on
-the device and persists them; no code editing needed. A Home Screen icon or
-widget skips the menu and checks directly.
+Post-flight check, Settings, and a Demos submenu of preview states. Settings
+edits the camera URL and all thresholds on the device and persists them; no code
+editing needed. A Home Screen icon or widget skips the menu and checks directly.
 
 ## Computer (offload, capture, web UI)
 
@@ -59,6 +61,7 @@ Python 3, no dependencies:
     python3 rededge.py watch --interval 3      # live terminal readout
     python3 rededge.py status                  # raw status/version/networkstatus
     python3 rededge.py offload ./flight --only tif    # pull captures off the card
+    python3 rededge.py verify                  # post-flight: confirm captures exist, exit 0/1
     python3 rededge.py capture --bands 31 --block     # trigger one capture
     python3 rededge.py serve --page web/rededge-readiness.html   # web UI + CORS proxy
 
@@ -86,20 +89,37 @@ directory. Start with:
 and capture stubs, with payloads shaped to the documented schemas. Like the
 real camera it sends no CORS headers by default; pass `--cors` to relax that.
 
-    python3 rededge_mock.py --port 8080 --scenario healthy
+    python3 rededge_mock.py --port 8080 --scenario go
     python3 rededge.py --url http://127.0.0.1:8080 check
     python3 rededge.py --url http://127.0.0.1:8080 offload ./_mock_pull --only tif
 
-Scenarios: `healthy`, `lowsd`, `nogps`, `dlserror`, `badfw`, `multicam`. To
-exercise the iPhone script against the mock over WiFi, run the mock on a
-computer with `--host 0.0.0.0` and point the script's camera URL at that
-machine's address.
+Scenarios: `go`, `sd`, `nosd`, `gps`, `pos`, `time`, `warmup`, `volts`, `rig`,
+`warn`, `dls`, `nogo`. These are the same set the web Source menu and the iPhone
+Demos menu use, so a given name produces the same readout in all three layers;
+the test suite cross-checks that they agree. The "no link" state is simulated by
+not running the server. To exercise the iPhone script against the mock over
+WiFi, run the mock on a computer with `--host 0.0.0.0` and point the script's
+camera URL at that machine's address.
 
 ## Readiness checks
 
 SD storage, GPS fix, position accuracy, light sensor (DLS), supply voltage,
 time source, the multi-camera rig, and firmware. The worst check sets the
 overall state. All tools share the same logic and thresholds.
+
+## Security
+
+The tools are hardened where it is in their power to be, and honest about what
+is not. Camera-derived values (firmware, DLS status, time source, readings) are
+escaped or set as text before display in the web page and the iOS WebView, so a
+spoofed device on the open WiFi cannot inject markup. The hosted page ships a
+strict Content-Security-Policy and other headers (`web/_headers`). The `serve`
+proxy is read-only and GET-only; it cannot capture, delete, or reformat.
+
+What no code change can fix: the camera itself is unauthenticated and
+unencrypted on an open WiFi access point. Anything in range can read or command
+it directly, bypassing these tools. Treat the camera network as untrusted, keep
+it isolated, and verify critical reads.
 
 ## Thresholds
 
