@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/rededge-social.png" alt="RedEdge Field Tools" width="820">
+  <img src="assets/rededge-social.png" alt="RedEdge Readiness" width="820">
 </p>
 
-# RedEdge Field Tools
+# RedEdge Readiness
 
 Field readiness and capture tooling for the MicaSense RedEdge and Altum
 multispectral cameras, built around one question a pilot needs answered before
@@ -161,7 +161,7 @@ in the Settings menu for the iPhone script.
 
 ## About
 
-RedEdge Field Tools is a SudoKodes LLC project, from the makers of
+RedEdge Readiness is a SudoKodes LLC project, from the makers of
 [UAS SkyCheck](https://uas-skycheck.app). It is a standalone tool for
 multispectral sensor readiness, separate from SkyCheck's airspace focus.
 
