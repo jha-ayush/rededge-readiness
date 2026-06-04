@@ -317,13 +317,15 @@ async function runPostflight(s) {
 // ----------------------------------------------------------------------------
 const PALETTES = {
   dark: {
-    bg: "#0f141b", panel: "#1a212b", line: "#303945", text: "#e9eff5",
-    muted: "#9aa7b4", faint: "#7c8896", tagbg: "rgba(255,255,255,.06)",
+    bg: "#0b0e13", panel: "#181f29", line: "#333d4a", text: "#f0f4f8",
+    muted: "#aab6c2", faint: "#8997a4", tagbg: "rgba(255,255,255,.06)",
+    shadow: "0 4px 16px -4px rgba(0,0,0,.55)",
     GO: "#3be9a4", CHECK: "#f9bb4d", "NO-GO": "#ff6b6b", UNKNOWN: "#8593a0",
   },
   light: {
-    bg: "#eef1f5", panel: "#ffffff", line: "#dbe2e9", text: "#14202b",
-    muted: "#52606d", faint: "#7e8b98", tagbg: "rgba(20,40,60,.05)",
+    bg: "#e7ebf0", panel: "#ffffff", line: "#d2dae2", text: "#131c26",
+    muted: "#475461", faint: "#6a7785", tagbg: "rgba(20,40,60,.05)",
+    shadow: "0 2px 4px rgba(20,40,60,.06), 0 8px 20px -6px rgba(20,40,60,.12)",
     GO: "#0e9b69", CHECK: "#b9760f", "NO-GO": "#d62f2f", UNKNOWN: "#7d8a96",
   },
 };
@@ -356,7 +358,7 @@ function buildHTML(res, theme) {
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <style>
   :root{--bg:${p.bg};--panel:${p.panel};--line:${p.line};--text:${p.text};--muted:${p.muted};--faint:${p.faint};
-    --tagbg:${p.tagbg};
+    --tagbg:${p.tagbg};--shadow:${p.shadow};
     --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
     --body:-apple-system,system-ui,sans-serif;--state:${c}}
   *{box-sizing:border-box;margin:0;padding:0}
@@ -369,7 +371,7 @@ function buildHTML(res, theme) {
   .brand .r{color:${p["NO-GO"]}}
   .stamp{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--faint)}
   .banner{position:relative;border-radius:16px;padding:24px 20px;border:1px solid var(--state);
-    background:var(--panel);overflow:hidden}
+    background:var(--panel);overflow:hidden;box-shadow:var(--shadow)}
   .banner::before{content:"";position:absolute;inset:0;opacity:.12;
     background:radial-gradient(120% 140% at 0% 0%,var(--state),transparent 55%)}
   .state{position:relative;font-weight:900;font-size:clamp(44px,14vw,72px);line-height:.9;color:var(--state)}
@@ -378,7 +380,7 @@ function buildHTML(res, theme) {
   .checks{margin-top:14px;display:grid;grid-template-columns:1fr;gap:8px}
   @media(min-width:680px){.checks{grid-template-columns:1fr 1fr}}
   .check{display:flex;align-items:center;gap:13px;background:var(--panel);
-    border:1px solid var(--line);border-radius:12px;padding:14px}
+    border:1px solid var(--line);border-radius:12px;padding:14px;box-shadow:var(--shadow)}
   .dot{width:9px;height:9px;border-radius:50%;flex:none;background:var(--c);box-shadow:0 0 7px var(--c)}
   .meta{min-width:0;flex:1}.label{font-size:14px;font-weight:500;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .tag{font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.05em;padding:2px 6px;border-radius:5px;background:var(--tagbg)}
