@@ -13,11 +13,13 @@ path must go through "rededge.py serve". Pass --cors to relax that for quick
 direct testing of the web page.
 
 Usage:
-  python3 rededge_mock.py --port 8080 --scenario healthy
+  python3 rededge_mock.py --port 8080 --scenario go
   python3 rededge.py --url http://127.0.0.1:8080 check
   python3 rededge.py --url http://127.0.0.1:8080 offload ./_mock_pull
 
-Scenarios: healthy, lowsd, nogps, dlserror, badfw, multicam
+Scenarios (identical to the web and iOS demo set): go, sd, nosd, gps, pos, time,
+warmup, volts, rig, warn, dls, nogo. The "no link" state is simulated by simply
+not running the server.
 Point a phone's Scriptable script at http://<this-machine-ip>:8080 to test it
 against this mock over the WiFi (set --host 0.0.0.0, the default).
 """
@@ -63,36 +65,52 @@ def healthy_status():
 
 def payloads(scenario):
     status = healthy_status()
-    fw = "v7.1.0"
+    cam_fw = "v7.1.0"
     cams = [{"bands": BANDS, "bandwidths": BANDWIDTHS, "device_type": "Camera",
              "gps_source": "", "mode": "main", "sd_gb_free": 20.1,
              "sd_gb_total": 29.7, "sd_status": "Ok", "sd_type": "FAT32",
-             "sd_warn": False, "serial": "RM02-1839163-SC", "sw_version": fw}]
+             "sd_warn": False, "serial": "RM02-1839163-SC", "sw_version": cam_fw}]
     dls = [{"bands": [450, 500, 550, 570, 600, 610, 650, 680, 730, 760, 810, 860],
             "bandwidths": [], "device_type": "DLS 2", "gps_source": "direct",
             "mode": "auxiliary", "serial": "DA03-1921711-OB", "sw_version": "v1.2.3"}]
 
-    if scenario == "lowsd":
+    # Canonical scenarios, identical to the web and iOS demo set. The same name
+    # produces the same readiness state across all three layers. "down" (no
+    # link) is simulated by simply not running the server.
+    if scenario == "go":
+        pass
+    elif scenario == "sd":
         status["sd_gb_free"] = 0.7
         status["sd_warn"] = True
-    elif scenario == "nogps":
-        status["gps_used_sats"] = 2
-        status["p_acc"] = 18.3
+    elif scenario == "nosd":
+        status["sd_status"] = "NotPresent"
+    elif scenario == "gps":
+        status["gps_used_sats"] = 4
+    elif scenario == "pos":
+        status["p_acc"] = 12.0
+    elif scenario == "time":
         status["utc_time_valid"] = False
-        status["time_source"] = "None"
-        status["gps_type"] = "No GPS"
-    elif scenario == "dlserror":
-        status["dls_status"] = "Error"
-    elif scenario == "badfw":
-        fw = "v6.0.0"
-        cams[0]["sw_version"] = fw
-    elif scenario == "multicam":
+    elif scenario == "warmup":
+        status["dls_status"] = "Programming"
+    elif scenario == "volts":
+        status["bus_volts"] = 3.9
+    elif scenario == "rig":
         aux = dict(cams[0])
-        aux["mode"] = "auxiliary"
+        aux["sw_version"] = "v7.0.0"
         aux["serial"] = "RM02-1839202-SC"
         cams = [cams[0], aux]
+    elif scenario == "warn":
+        status["sd_gb_free"] = 0.7
+        status["sd_warn"] = True
+        status["bus_volts"] = 3.9
+        status["gps_used_sats"] = 4
+    elif scenario == "dls":
+        status["dls_status"] = "Error"
+    elif scenario == "nogo":
+        status["sd_status"] = "NotPresent"
+        status["dls_status"] = "Error"
 
-    version = {"sw_version": fw, "serial": "RM02-1839163-SC"}
+    version = {"sw_version": cam_fw, "serial": "RM02-1839163-SC"}
     network = {"network_map": cams + dls}
     camera_info = {str(i + 1): {"type": "bandpass", "center_nm": BANDS[i],
                                 "bandwidth_nm": BANDWIDTHS[i], "focal_length_px": 1100.0,
@@ -207,8 +225,9 @@ def main():
     p = argparse.ArgumentParser(description="Mock RedEdge HTTP API for testing.")
     p.add_argument("--host", default="0.0.0.0")
     p.add_argument("--port", type=int, default=8080)
-    p.add_argument("--scenario", default="healthy",
-                   choices=["healthy", "lowsd", "nogps", "dlserror", "badfw", "multicam"])
+    p.add_argument("--scenario", default="go",
+                   choices=["go", "sd", "nosd", "gps", "pos", "time", "warmup",
+                            "volts", "rig", "warn", "dls", "nogo"])
     p.add_argument("--cors", action="store_true",
                    help="send CORS headers (the real camera does not)")
     a = p.parse_args()
