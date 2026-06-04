@@ -390,17 +390,59 @@ function buildHTML(res, theme) {
   .foot{margin-top:18px;padding-top:13px;border-top:1px solid var(--line);font-size:11.5px;color:var(--faint);line-height:1.5}
   .foot-bar{display:flex;justify-content:space-between;gap:10px;margin-top:10px;padding-top:9px;border-top:1px solid var(--line);font-family:var(--mono);font-size:10.5px}
   .foot-prod{color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  .prep{margin-top:14px;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+  .prep-h{padding:13px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:8px;cursor:pointer}
+  .prep-h .pc{margin-left:auto;color:var(--faint);letter-spacing:0;text-transform:none}
+  .prep-h .chev{transition:transform .15s ease;color:var(--faint);font-size:14px}
+  .prep.open .prep-h .chev{transform:rotate(90deg)}
+  .prep-body{display:none;border-top:1px solid var(--line)}
+  .prep.open .prep-body{display:block}
+  .prep-intro{padding:11px 14px 2px;margin:0;font-size:12px;color:var(--muted);line-height:1.45}
+  .prep-list{padding:4px 8px 8px}
+  .pitem{display:flex;align-items:flex-start;gap:11px;padding:11px 10px;border-radius:9px}
+  .pitem .cbox{flex:none;width:18px;height:18px;margin-top:1px;border-radius:5px;border:1.5px solid var(--line);background:var(--bg);position:relative}
+  .pitem .ctext{font-size:13px;line-height:1.4;color:var(--text)}
+  .pitem.done .cbox{background:var(--go);border-color:var(--go)}
+  .pitem.done .cbox::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:10px;border:solid #06231a;border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .pitem.done .ctext{color:var(--muted);text-decoration:line-through}
+  .prep-air{margin:4px 14px 14px;padding:12px;border-radius:9px;background:var(--tagbg);border:1px solid var(--line);font-size:12px;line-height:1.45;color:var(--muted)}
+  .prep-air b{color:var(--text)}.prep-air a{color:var(--text)}
 </style></head><body><div class="wrap">
   <div class="head"><svg class="mark" viewBox="0 0 36 36" aria-hidden="true"><path d="M 19.31 3.06 A 15 15 0 0 1 32.00 12.62" stroke="#4d8df0" stroke-width="3.6" fill="none" stroke-linecap="round"/><path d="M 32.72 15.14 A 15 15 0 0 1 27.03 29.98" stroke="#2fe39a" stroke-width="3.6" fill="none" stroke-linecap="round"/><path d="M 24.81 31.37 A 15 15 0 0 1 8.97 29.98" stroke="#ff5a5a" stroke-width="3.6" fill="none" stroke-linecap="round"/><path d="M 7.03 28.23 A 15 15 0 0 1 4.00 12.62" stroke="#f6943e" stroke-width="3.6" fill="none" stroke-linecap="round"/><path d="M 5.14 10.27 A 15 15 0 0 1 19.31 3.06" stroke="#b06cf0" stroke-width="3.6" fill="none" stroke-linecap="round"/><circle cx="18" cy="18" r="8" fill="none" stroke="#2fe39a" stroke-width="2" opacity="0.5"/><circle cx="18" cy="18" r="3.4" fill="#2fe39a"/></svg><div class="brand"><span class="r">RED</span>EDGE READINESS</div>
     <div class="stamp">checked ${stamp}</div></div>
   <div class="banner"><div class="state">${res.overall}</div>
     <div class="reason">${esc(res.reason)}<div class="sub">${esc(res.sub)}</div></div></div>
   <div class="checks">${rows}</div>
+  <div class="prep" id="prep">
+    <div class="prep-h" id="prepH"><span class="chev">&#8250;</span>Pre-flight prep<span class="pc" id="pc"></span></div>
+    <div class="prep-body">
+      <p class="prep-intro">Manual steps the camera cannot report for itself. Tap each once done.</p>
+      <div class="prep-list">
+        <div class="pitem"><span class="cbox"></span><span class="ctext">Reflectance calibration panel captured, before and after the flight</span></div>
+        <div class="pitem"><span class="cbox"></span><span class="ctext">All lenses clean and unobstructed across every band</span></div>
+        <div class="pitem"><span class="cbox"></span><span class="ctext">DLS irradiance sensor clean, level, clear view of the sky</span></div>
+        <div class="pitem"><span class="cbox"></span><span class="ctext">SD card formatted for the mission and firmly seated</span></div>
+        <div class="pitem"><span class="cbox"></span><span class="ctext">Firmware matched across all bands and cameras</span></div>
+        <div class="pitem"><span class="cbox"></span><span class="ctext">Camera mount secure, vibration isolation intact</span></div>
+        <div class="pitem"><span class="cbox"></span><span class="ctext">Capture interval and overlap set for the mission</span></div>
+        <div class="pitem"><span class="cbox"></span><span class="ctext">GPS lock acquired before launch</span></div>
+      </div>
+      <div class="prep-air"><b>Airspace, LAANC, and TFRs are not checked here.</b> Sensor readiness only. For flight legality, use <a href="https://uas-skycheck.app">UAS SkyCheck</a>.</div>
+    </div>
+  </div>
   <div class="foot">Fail toward caution. Anything unconfirmed counts as CHECK; a lost link is NO-GO. Reports sensor readiness, not flight legality. Re-run to refresh.
     <div style="margin-top:8px">RedEdge and Altum are products of MicaSense (AgEagle). Independent tool, not affiliated with or endorsed by them.</div>
     <div style="margin-top:6px">From the makers of UAS SkyCheck.</div>
     <div class="foot-bar"><span>&copy; 2026 SudoKodes LLC</span><span class="foot-prod">RedEdge Field Tools</span></div>
   </div>
+<script>(function(){
+  var prep=document.getElementById('prep'), h=document.getElementById('prepH');
+  if(h) h.addEventListener('click',function(){ prep.classList.toggle('open'); });
+  function upd(){ var n=document.querySelectorAll('.pitem').length, d=document.querySelectorAll('.pitem.done').length, c=document.getElementById('pc'); if(c) c.textContent=d+' of '+n; }
+  var items=document.querySelectorAll('.pitem');
+  for(var i=0;i<items.length;i++){ (function(it){ it.addEventListener('click',function(){ it.classList.toggle('done'); upd(); }); })(items[i]); }
+  upd();
+})();</script>
 </div></body></html>`;
 }
 
