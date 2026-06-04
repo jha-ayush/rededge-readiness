@@ -197,9 +197,13 @@ def evaluate(snapshot, cfg):
                         "no response from " + cfg["url"])],
         }
 
-    s = snapshot.get("status") or {}
+    s = snapshot.get("status")
+    if not isinstance(s, dict):
+        s = {}
     net = snapshot.get("network")
-    ver = snapshot.get("version") or {}
+    ver = snapshot.get("version")
+    if not isinstance(ver, dict):
+        ver = {}
     checks = []
 
     # SD storage
@@ -213,8 +217,9 @@ def evaluate(snapshot, cfg):
         state, note = "CHECK", "low-space warning or unrecommended filesystem"
     elif isinstance(free, (int, float)) and free < cfg["sd"]:
         state, note = "CHECK", "below %g GB headroom" % cfg["sd"]
-    elif st is None:
-        state, note = "UNKNOWN", "card status not reported"
+    elif st != "Ok":
+        state, note = "UNKNOWN", ("card status not reported" if st is None
+                                  else "unrecognized card status")
     checks.append(("SD storage",
                    ("%.1f GB" % free) if isinstance(free, (int, float)) else "--",
                    state, note))
@@ -245,8 +250,9 @@ def evaluate(snapshot, cfg):
         note = "no DLS, reflectance limited" if cfg["dls"] else "no DLS (not required)"
     elif dls in ("Programming", "Initializing"):
         state, note = "CHECK", "DLS warming up, wait"
-    elif dls is None:
-        state, note = "UNKNOWN", "DLS state not reported"
+    elif dls != "Ok":
+        state, note = "UNKNOWN", ("DLS state not reported" if dls is None
+                                  else "unrecognized DLS state")
     checks.append(("Light sensor", dls or "--", state, note))
 
     # Supply voltage
@@ -261,7 +267,7 @@ def evaluate(snapshot, cfg):
                    state, note))
 
     # Camera rig
-    if not net or not isinstance(net.get("network_map"), list):
+    if not isinstance(net, dict) or not isinstance(net.get("network_map"), list):
         checks.append(("Camera rig", "--", "UNKNOWN", "network status unavailable"))
     else:
         cams = [x for x in net["network_map"] if x.get("device_type") == "Camera"]
@@ -307,12 +313,22 @@ def evaluate(snapshot, cfg):
 
 def snapshot(client):
     """Read the camera. Fail toward caution: any read failure flags the check,
-    a dead link reads NO-GO. Never returns a clear pass on missing data."""
+    a dead link reads NO-GO. Never returns a clear pass on missing data.
+
+    /status is the critical read; if it fails or is malformed, that is a
+    no-link NO-GO. /version and /networkstatus are best-effort, so a flaky
+    secondary endpoint degrades only its own check (to CHECK) instead of
+    failing the whole readout."""
     try:
         status = client.status()
-        version = client.version()
     except RedEdgeError:
         return {"ok": False}
+    if not isinstance(status, dict):
+        return {"ok": False}
+    try:
+        version = client.version()
+    except RedEdgeError:
+        version = None
     try:
         network = client.networkstatus()
     except RedEdgeError:
