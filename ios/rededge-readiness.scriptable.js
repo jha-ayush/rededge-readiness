@@ -339,7 +339,7 @@ function resolveTheme(s) {
 
 function buildHTML(res, theme, isDemo) {
   const p = PALETTES[theme] || PALETTES.dark;
-  const stamp = isDemo ? "demo data, not live" : ("checked " + new Date().toLocaleTimeString([], { hour12: false }));
+  const stamp = isDemo ? "simulated data" : ("checked " + new Date().toLocaleTimeString([], { hour12: false }));
   // Escape any camera-derived text before it enters the WebView markup. A
   // spoofed device on the open WiFi could otherwise inject markup via fields
   // like firmware version, DLS status, or time source.
