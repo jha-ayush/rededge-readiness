@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/rededge-icon.png" alt="RedEdge Field Tools" width="104" height="104">
+  <img src="assets/rededge-social.png" alt="RedEdge Field Tools" width="820">
 </p>
 
 # RedEdge Field Tools
