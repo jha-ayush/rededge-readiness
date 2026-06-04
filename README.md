@@ -12,6 +12,13 @@ Every check fails toward caution. Anything that cannot be confirmed reads as
 CHECK, a lost link reads as NO-GO, and the tools never return a clear pass on
 missing data. They report sensor readiness, not flight legality.
 
+**Live:** [rededge-api.write2ayushjha.workers.dev](https://rededge-api.write2ayushjha.workers.dev/)
+The hosted page is for demo, review, and training. It cannot read a real camera,
+since a browser on HTTPS cannot reach the camera's local plain-HTTP endpoint
+(mixed content) and the camera sends no CORS headers. Live reads come from the
+iPhone script or the Python tool. Append `?source=demo-go` (or any demo state)
+and `&theme=light` to share a specific preview.
+
 ## The constraint that shapes everything
 
 The camera is a local device. It serves plain HTTP JSON at `192.168.10.254`
