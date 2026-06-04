@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="RedEdge Readiness">
+<rect width="128" height="128" rx="28" fill="#0a0c0e"/>
+<rect x="1.75" y="1.75" width="124.5" height="124.5" rx="26.25" fill="none" stroke="#232a31" stroke-width="1.5"/>
+<path d="M 67.07 20.11 A 44 44 0 0 1 104.80 47.52" stroke="#4d8df0" stroke-width="9" fill="none" stroke-linecap="round"/>
+<path d="M 106.69 53.36 A 44 44 0 0 1 92.28 97.71" stroke="#2fe39a" stroke-width="9" fill="none" stroke-linecap="round"/>
+<path d="M 87.32 101.31 A 44 44 0 0 1 40.68 101.31" stroke="#ff5a5a" stroke-width="9" fill="none" stroke-linecap="round"/>
+<path d="M 35.72 97.71 A 44 44 0 0 1 21.31 53.36" stroke="#f6943e" stroke-width="9" fill="none" stroke-linecap="round"/>
+<path d="M 23.20 47.52 A 44 44 0 0 1 60.93 20.11" stroke="#b06cf0" stroke-width="9" fill="none" stroke-linecap="round"/>
+<circle cx="64" cy="64" r="24" fill="none" stroke="#2fe39a" stroke-width="5" opacity="0.5"/>
+<circle cx="64" cy="64" r="9" fill="#2fe39a"/>
+</svg>
