@@ -64,7 +64,8 @@ That is why the everyday field tool is the native iOS script, not a website.
 ## iPhone (everyday use)
 
 1. Install Scriptable from the App Store (free).
-2. New script, paste in `ios/rededge-readiness.scriptable.js`, name it.
+2. New script, paste in `ios/rededge-readiness.scriptable.js`, name it
+   `RedEdgeReadiness` (no spaces keeps the automation URLs below clean).
 3. Join the camera WiFi. On first run, allow Local Network access when prompted
    (or enable it in Settings > Scriptable > Local Network).
 4. Run from a Home Screen icon or a widget for an instant readout. Re-run to
@@ -82,8 +83,8 @@ menu (name the script to match the URL). Use `action=postflight` for the
 post-flight card, or `source=live` for a pre-flight check:
 
 ```
-scriptable:///run/RedEdge%20Readiness?action=postflight
-scriptable:///run/RedEdge%20Readiness?source=live
+scriptable:///run/RedEdgeReadiness?action=postflight
+scriptable:///run/RedEdgeReadiness?source=live
 ```
 
 In Shortcuts, use an Open URL action with one of the above; the same URL can be
