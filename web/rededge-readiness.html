@@ -347,7 +347,10 @@
 
   <div class="hint" id="hint" hidden>
     <span class="hi">&#9888;</span>
-    <div><b>No camera found.</b> Join the camera's WiFi network, then refresh. Wrong address? Set it under <a id="hintSettings">Settings</a>. Just exploring? Pick a <b>Demo</b> from the Source menu to preview each state.</div>
+    <div>
+      <div id="hintLocal"><b>No camera found.</b> Join the camera's WiFi network, then refresh. Wrong address? Set it under <a id="hintSettings">Settings</a>. Just exploring? Pick a <b>Demo</b> from the Source menu to preview each state.</div>
+      <div id="hintHosted" hidden><b>This hosted page can't reach a local camera.</b> A browser blocks a secure page from loading the camera's local HTTP address, so live reads work only in the iPhone app or when you run the tool locally. Just exploring? Pick a <b>Demo</b> from the Source menu to preview each state.</div>
+    </div>
   </div>
 
   <div class="legend">
@@ -809,7 +812,13 @@ async function tick(){
   el("demoBadge").hidden = !isDemo;
   render(evaluate(d,cfg));
   // Contextual help only when trying Live and the camera is unreachable.
-  el("hint").hidden = !(src==="live" && !d.ok);
+  const showHint = (src==="live" && !d.ok);
+  el("hint").hidden = !showHint;
+  if(showHint){
+    const blocked = location.protocol==="https:" && /^http:\/\//i.test(cfg.url||"");
+    el("hintLocal").hidden = blocked;
+    el("hintHosted").hidden = !blocked;
+  }
   nextAt=Date.now()+Math.max(1,cfg.poll)*1000;
   stamp(); busy=false;
   el("refreshBtn").classList.remove("spin");
@@ -870,6 +879,17 @@ el("source").value=VALID_SOURCES.includes(wantSource)?wantSource:"live";
 saveCfg(cfg);
 fillSettings();
 tick(); schedule();
+
+// Pause the poll loop when the tab is backgrounded (saves battery and avoids
+// a hidden tab hammering failed live reads); resume with a fresh read on return.
+document.addEventListener("visibilitychange",()=>{
+  if(document.hidden){
+    if(timer){ clearInterval(timer); timer=null; }
+    if(countdownTimer){ clearInterval(countdownTimer); countdownTimer=null; }
+  } else {
+    tick(); schedule();
+  }
+});
 </script>
 </body>
 </html>
