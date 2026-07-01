@@ -257,11 +257,12 @@ async function snapshot(s, demoKind) {
     return { ok: false };
   }
   if (!status || typeof status !== "object") return { ok: false };
-  // /version and /networkstatus are best-effort: a flaky secondary endpoint
-  // degrades only its own check, it does not fail the whole readout.
-  let version = null, network = null;
-  try { version = await getJSON(s, "/version"); } catch (e) { /* optional */ }
-  try { network = await getJSON(s, "/networkstatus"); } catch (e) { /* optional */ }
+  // Read the two secondary endpoints in parallel to shave latency on the phone.
+  // Each is best-effort: a failure degrades only its own check, not the readout.
+  const [version, network] = await Promise.all([
+    getJSON(s, "/version").catch(() => null),
+    getJSON(s, "/networkstatus").catch(() => null),
+  ]);
   return { ok: true, status, version, network };
 }
 
@@ -337,7 +338,7 @@ function resolveTheme(s) {
   catch (e) { return "dark"; }
 }
 
-function buildHTML(res, theme, isDemo) {
+function buildHTML(res, theme, isDemo, noLink) {
   const p = PALETTES[theme] || PALETTES.dark;
   const stamp = isDemo ? "simulated data" : ("checked " + new Date().toLocaleTimeString([], { hour12: false }));
   // Escape any camera-derived text before it enters the WebView markup. A
@@ -378,6 +379,8 @@ function buildHTML(res, theme, isDemo) {
   .state{position:relative;font-weight:900;font-size:clamp(44px,14vw,72px);line-height:.9;color:var(--state)}
   .reason{position:relative;margin-top:12px;font-size:15px;line-height:1.45}
   .sub{color:var(--muted);font-size:12.5px;margin-top:4px;line-height:1.4}
+  .tip{margin-top:12px;padding:12px 14px;border-radius:12px;background:var(--tagbg);border:1px solid var(--line);font-size:12.5px;line-height:1.45;color:var(--muted)}
+  .tip b{color:var(--text)}
   .checks{margin-top:14px;display:grid;grid-template-columns:1fr;gap:8px}
   @media(min-width:680px){.checks{grid-template-columns:1fr 1fr}}
   .check{display:flex;align-items:center;gap:13px;background:var(--panel);
@@ -413,6 +416,7 @@ function buildHTML(res, theme, isDemo) {
     <div class="stamp">${isDemo ? '<span class="demo-badge">DEMO</span>' : ''}${stamp}</div></div>
   <div class="banner"><div class="state">${res.overall}</div>
     <div class="reason">${esc(res.reason)}<div class="sub">${esc(res.sub)}</div></div></div>
+  ${noLink ? '<div class="tip"><b>No answer from the camera.</b> Confirm you are on the camera WiFi and the base URL is right. On iPhone, also allow Local Network access: Settings, Scriptable, Local Network.</div>' : ''}
   <div class="checks">${rows}</div>
   <div class="prep" id="prep">
     <div class="prep-h" id="prepH"><span class="chev">&#8250;</span>Pre-flight prep<span class="pc" id="pc"></span></div>
@@ -482,9 +486,24 @@ async function main() {
 
   // Field use (Home Screen icon, Share Sheet, Siri): go straight to the check.
   // Opened inside the Scriptable app: show a menu so settings are reachable.
-  const inApp = config.runsInApp && !config.runsFromHomeScreen;
+  // Automation: a Shortcut or NFC tag can call
+  //   scriptable:///run/RedEdge%20Readiness?action=postflight
+  //   scriptable:///run/RedEdge%20Readiness?source=live   (or go, volts, nogo, ...)
+  // to jump straight to a readout, skipping the menu.
+  const q = (typeof args !== "undefined" && args.queryParameters) ? args.queryParameters : {};
   let demoKind = DEMO;
-  let result = null;  // set directly by branches that build their own result
+  let result = null;      // set directly by branches that build their own result
+  let forced = false;     // automation bypassed the menu
+  let noLink = false;     // live read returned no link (drives an iOS-specific tip)
+
+  if (q.action === "postflight") { result = await runPostflight(s); forced = true; }
+  else if (q.source) {
+    const src = String(q.source).replace(/^demo-/, "");
+    demoKind = (src === "live") ? "" : src;
+    forced = true;
+  }
+
+  const inApp = config.runsInApp && !config.runsFromHomeScreen && !forced;
 
   if (inApp) {
     const m = new Alert();
@@ -528,9 +547,13 @@ async function main() {
     else demoKind = "";
   }
 
-  if (!result) result = evaluate(await snapshot(s, demoKind), s);
+  if (!result) {
+    const snap = await snapshot(s, demoKind);
+    result = evaluate(snap, s);
+    noLink = !demoKind && snap.ok === false;   // live, and the camera did not answer
+  }
   const wv = new WebView();
-  await wv.loadHTML(buildHTML(result, resolveTheme(s), !!demoKind));
+  await wv.loadHTML(buildHTML(result, resolveTheme(s), !!demoKind, noLink));
   await wv.present(true);
   Script.complete();
 }
