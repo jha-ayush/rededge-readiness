@@ -18,6 +18,12 @@
 // Re-run to refresh. Open this script inside the Scriptable app to get a menu
 // with Check now, Settings (edit thresholds and camera URL on the device), and
 // demo states. A Home Screen icon or widget skips the menu and checks directly.
+//
+// Automation: a Shortcut or NFC tag can jump straight to a readout, skipping the
+// menu (the script name in the URL must match the name you gave it):
+//   scriptable:///run/RedEdge%20Readiness?action=postflight   post-flight card
+//   scriptable:///run/RedEdge%20Readiness?source=live         pre-flight check
+//   scriptable:///run/RedEdge%20Readiness?source=go           a demo state (go, volts, nogo, ...)
 
 // ----------------------------------------------------------------------------
 // Config
