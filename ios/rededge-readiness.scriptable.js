@@ -9,7 +9,8 @@
 //
 // Setup:
 //   1. Install Scriptable from the App Store (free).
-//   2. New script, paste this in, name it "RedEdge Readiness".
+//   2. New script, paste this in, name it RedEdgeReadiness (no spaces, so the
+//      automation URLs below stay clean).
 //   3. Join the camera WiFi. On first run, allow Local Network access
 //      (Settings > Scriptable > Local Network if not prompted).
 //   4. Run from the app, the Share Sheet, a Home Screen icon, or add it as a
@@ -21,9 +22,9 @@
 //
 // Automation: a Shortcut or NFC tag can jump straight to a readout, skipping the
 // menu (the script name in the URL must match the name you gave it):
-//   scriptable:///run/RedEdge%20Readiness?action=postflight   post-flight card
-//   scriptable:///run/RedEdge%20Readiness?source=live         pre-flight check
-//   scriptable:///run/RedEdge%20Readiness?source=go           a demo state (go, volts, nogo, ...)
+//   scriptable:///run/RedEdgeReadiness?action=postflight   post-flight card
+//   scriptable:///run/RedEdgeReadiness?source=live         pre-flight check
+//   scriptable:///run/RedEdgeReadiness?source=go           a demo state (go, volts, nogo, ...)
 
 // ----------------------------------------------------------------------------
 // Config
@@ -493,8 +494,8 @@ async function main() {
   // Field use (Home Screen icon, Share Sheet, Siri): go straight to the check.
   // Opened inside the Scriptable app: show a menu so settings are reachable.
   // Automation: a Shortcut or NFC tag can call
-  //   scriptable:///run/RedEdge%20Readiness?action=postflight
-  //   scriptable:///run/RedEdge%20Readiness?source=live   (or go, volts, nogo, ...)
+  //   scriptable:///run/RedEdgeReadiness?action=postflight
+  //   scriptable:///run/RedEdgeReadiness?source=live   (or go, volts, nogo, ...)
   // to jump straight to a readout, skipping the menu.
   const q = (typeof args !== "undefined" && args.queryParameters) ? args.queryParameters : {};
   let demoKind = DEMO;
