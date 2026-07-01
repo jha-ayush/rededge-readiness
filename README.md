@@ -77,6 +77,18 @@ editing needed. A Home Screen icon or widget skips the menu and checks directly.
 The readout also carries a collapsible Pre-flight prep checklist and a link to
 UAS SkyCheck for the airspace side.
 
+A Shortcut or NFC tag can drive the script straight to a readout, skipping the
+menu (name the script to match the URL). Use `action=postflight` for the
+post-flight card, or `source=live` for a pre-flight check:
+
+```
+scriptable:///run/RedEdge%20Readiness?action=postflight
+scriptable:///run/RedEdge%20Readiness?source=live
+```
+
+In Shortcuts, use an Open URL action with one of the above; the same URL can be
+written to an NFC tag (for example on the drone case) via a Shortcuts automation.
+
 ## Computer (offload, capture, web UI)
 
 Python 3, no dependencies:
