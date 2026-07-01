@@ -1,4 +1,4 @@
-# Cloudflare Pages: serve the readiness page at the site root.
+# Cloudflare static assets: serve the readiness page at the site root.
 # Status 200 makes this a rewrite, not a redirect, so the URL stays clean
 # (e.g. /?source=demo-go) and the query string still reaches the page.
 /    /rededge-readiness.html    200
