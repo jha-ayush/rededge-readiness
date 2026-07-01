@@ -12,7 +12,7 @@ Every check fails toward caution. Anything that cannot be confirmed reads as
 CHECK, a lost link reads as NO-GO, and the tools never return a clear pass on
 missing data. They report sensor readiness, not flight legality.
 
-**Live:** [rededge-api.write2ayushjha.workers.dev](https://rededge-api.write2ayushjha.workers.dev/)
+**Live:** <a href="https://rededge-api.write2ayushjha.workers.dev/" target="_blank" rel="noopener noreferrer">rededge-api.write2ayushjha.workers.dev</a>
 The hosted page is for demo, review, and training. It cannot read a real camera,
 since a browser on HTTPS cannot reach the camera's local plain-HTTP endpoint
 (mixed content) and the camera sends no CORS headers. Live reads come from the
@@ -25,11 +25,11 @@ The day-to-day flow, start to finish:
 
 1. **Join the camera WiFi.** Every tool that reads the camera must be on its network.
 2. **Pre-flight readiness.** On the iPhone, tap the Home Screen icon or run Check now; on a computer, `python3 rededge.py check`. Resolve anything that reads CHECK or NO-GO before flying.
-3. **Pre-flight prep.** Work the manual Pre-flight prep checklist in the app: reflectance panel captured, lenses and DLS clean, mount secure, firmware matched, capture interval set, GPS lock. For airspace, LAANC, and TFRs, check [UAS SkyCheck](https://uas-skycheck.app); this tool does not cover flight legality.
+3. **Pre-flight prep.** Work the manual Pre-flight prep checklist in the app: reflectance panel captured, lenses and DLS clean, mount secure, firmware matched, capture interval set, GPS lock. For airspace, LAANC, and TFRs, check <a href="https://uas-skycheck.app" target="_blank" rel="noopener noreferrer">UAS SkyCheck</a>; this tool does not cover flight legality.
 4. **Fly.**
 5. **Post-flight.** Confirm captures landed with `verify` (or Post-flight check on the phone), then `offload` the imagery.
 
-[OPERATING.md](OPERATING.md) has the one-page version to keep on hand.
+<a href="OPERATING.md" target="_blank" rel="noopener noreferrer">OPERATING.md</a> has the one-page version to keep on hand.
 
 ## The constraint that shapes everything
 
@@ -176,7 +176,7 @@ in the Settings menu for the iPhone script.
 ## About
 
 RedEdge Readiness is a SudoKodes LLC project, from the makers of
-[UAS SkyCheck](https://uas-skycheck.app). It is a standalone tool for
+<a href="https://uas-skycheck.app" target="_blank" rel="noopener noreferrer">UAS SkyCheck</a>. It is a standalone tool for
 multispectral sensor readiness, separate from SkyCheck's airspace focus.
 
 RedEdge and Altum are products of MicaSense (AgEagle). This is an independent
