@@ -46,7 +46,10 @@ Two consequences:
   Native code (Python, or Scriptable on iOS) has no CORS restriction; a browser
   does.
 
-That is why the everyday field tool is the native iOS script, not a website.
+That is why the everyday field tool is the native iOS script, not a website, and
+why there are three clients over one shared evaluation contract rather than one
+app. The full reasoning, and the tradeoff behind every other decision here, is in
+<a href="ARCHITECTURE.md" target="_blank" rel="noopener noreferrer">ARCHITECTURE.md</a>.
 
 ## Files
 
@@ -59,7 +62,12 @@ That is why the everyday field tool is the native iOS script, not a website.
 | `web/rededge-readiness.html` | Responsive web version. Demo and review on any device. Live use needs the local proxy in `rededge.py serve`, so it is a computer tool. |
 | `web/_headers` | Security headers (Content-Security-Policy and more) applied to the hosted page on Cloudflare. |
 | `rededge.example.json` | Template for the shared config schema. Copy to `rededge.json` and edit. |
+| `ARCHITECTURE.md` | Design decisions and the reasoning behind them, with the tradeoff each one cost. |
 | `OPERATING.md` | One-page operating guide: the day-to-day pre-flight and post-flight flow. |
+| `LICENSE.md` | Proprietary, source-available. Read and evaluate, no reuse. |
+| `wrangler.jsonc` | Cloudflare Worker config for the hosted demo page. |
+| `assets/` | Icon and social card. |
+| `.github/workflows/` | CI: compile check and test suite on every push and pull request. |
 | `.gitignore` | Keeps Python artifacts and offloaded imagery out of the repo. |
 
 ## iPhone (everyday use)
@@ -181,5 +189,9 @@ multispectral sensor readiness, separate from SkyCheck's airspace focus.
 
 RedEdge and Altum are products of MicaSense (AgEagle). This is an independent
 tool and is not affiliated with, sponsored by, or endorsed by them.
+
+The source is published here to be read and evaluated. It is proprietary and no
+rights to reuse it are granted. See
+<a href="LICENSE.md" target="_blank" rel="noopener noreferrer">LICENSE.md</a>.
 
 &copy; 2026 SudoKodes LLC. All rights reserved.
