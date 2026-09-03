@@ -510,6 +510,9 @@ const DEFAULTS = {
    typed by the pilot on purpose, is not restricted. */
 function isLocalCameraUrl(u){
   if(!u) return false;
+  // A leading "//" is not a path, it is a protocol-relative URL: "//evil.example"
+  // resolves to a remote origin. Only a single leading slash is same-origin.
+  if(u.startsWith("//")) return false;
   if(u.startsWith("/")) return true;                 // same-origin proxy, e.g. /cam
   let h;
   try{ h=new URL(u, location.href).hostname; }catch(_){ return false; }
