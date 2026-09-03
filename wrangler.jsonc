@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "rededge-api",
+  "name": "rededge-readiness",
   "compatibility_date": "2026-06-02",
   "observability": {
     "enabled": true
