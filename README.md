@@ -64,6 +64,7 @@ app. The full reasoning, and the tradeoff behind every other decision here, is i
 | `web/_headers` | Security headers (Content-Security-Policy and more) applied to the hosted page on Cloudflare. |
 | `rededge.example.json` | Template for the shared config schema. Copy to `rededge.json` and edit. |
 | `ARCHITECTURE.md` | Design decisions and the reasoning behind them, with the tradeoff each one cost. |
+| `CHANGELOG.md` | What changed and why, including the defects an audit found and what now guards against their return. |
 | `OPERATING.md` | One-page operating guide: the day-to-day pre-flight and post-flight flow. |
 | `LICENSE.md` | Proprietary, source-available. Read and evaluate, no reuse. |
 | `wrangler.jsonc` | Cloudflare Worker config for the hosted demo page. |
