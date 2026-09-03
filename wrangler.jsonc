@@ -1,5 +1,12 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
+  // Static assets only. There is no Worker script and no "main" entry, so the
+  // site is served straight from web/ with no runtime code executing at the
+  // edge. That is deliberate: the readiness page is self-contained, with no
+  // build step and no runtime dependencies. See ARCHITECTURE.md, Deployment.
+  //
+  // Because no Worker code runs, runtime compatibility flags (nodejs_compat and
+  // friends) have nothing to apply to. Do not re-add them unless a real Worker
+  // script is introduced here.
   "name": "rededge-readiness",
   "compatibility_date": "2026-06-02",
   "observability": {
@@ -7,8 +14,5 @@
   },
   "assets": {
     "directory": "web"
-  },
-  "compatibility_flags": [
-    "nodejs_compat"
-  ]
+  }
 }
