@@ -72,6 +72,15 @@ powered and booted; the address in Settings matches the camera
 
 ## Testing without a camera
 
-Run `python3 rededge_mock.py --scenario healthy` and point any tool at it. Use
-the other scenarios (`lowsd`, `nogps`, `dlserror`, `badfw`, `multicam`) to see
-each readout. The web page also has built-in Demo sources in its Source menu.
+Run `python3 rededge_mock.py --scenario go` and point any tool at it:
+
+```
+python3 rededge_mock.py --scenario go
+python3 rededge.py --url http://127.0.0.1:8080 check
+```
+
+The twelve scenarios are shared by the mock, the web page and the phone, so the
+same name produces the same readout everywhere: `go`, `sd`, `nosd`, `gps`,
+`pos`, `time`, `warmup`, `volts`, `rig`, `warn`, `dls`, `nogo`. A dead link is
+simulated by not running the mock at all. The web page carries the same set as
+built-in Demo sources in its Source menu.
