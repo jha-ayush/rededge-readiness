@@ -99,6 +99,13 @@
   }
   .topbar select:focus{outline:none;border-color:var(--faint)}
   .topbar select:focus-visible{outline:2px solid var(--go);outline-offset:2px}
+  /* A stale reading must not wear a fresh verdict's confidence. The state word
+     recedes and the frame turns to caution, so the eye stops trusting it. */
+  .banner.stale{border-color:var(--check)}
+  .banner.stale .state-word{opacity:.4}
+  .banner.stale .updated{color:var(--check)}
+  .stale-badge{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.14em;
+    color:var(--check);border:1px dashed var(--check);border-radius:6px;padding:3px 8px;white-space:nowrap}
   .demo-badge{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.14em;
     color:var(--check);border:1px dashed var(--check);border-radius:6px;padding:3px 8px;white-space:nowrap}
 
@@ -343,6 +350,7 @@
     <div class="banner-row">
       <div class="state-word" id="stateWord">...</div>
       <span class="demo-badge" id="demoBadge" hidden>DEMO</span>
+      <span class="stale-badge" id="staleBadge" hidden>STALE</span>
       <div class="pulse"></div>
     </div>
     <div class="reason"><span id="reasonMain">Connect to the camera WiFi and choose a source.</span><div class="sub" id="reasonSub"></div></div>
@@ -833,6 +841,12 @@ let lastStampAt=0, nextAt=0;
    it actually read. Previously the camera address appeared only when the link
    failed, which meant a green result and a green result from the wrong address
    looked identical. */
+function fmtAge(ms){
+  const sec=Math.floor(ms/1000);
+  if(sec<90) return sec+"s";
+  const min=Math.floor(sec/60);
+  return min<60 ? min+" min" : Math.floor(min/60)+"h "+(min%60)+"m";
+}
 function sourceLabel(u){
   if(!u) return "unknown source";
   if(u.startsWith("/")) return "local proxy " + u;
@@ -841,6 +855,18 @@ function sourceLabel(u){
 function paintStatus(){
   if(el("source").value!=="live"){
     el("updatedText").textContent="demo data \u00b7 not a live reading";
+    return;
+  }
+  /* A verdict is evidence about the instant it was read and nothing more. If the
+     poll loop stalls, a sleeping device, a hung request, a tab left in the
+     background, the last green result keeps sitting on screen looking current.
+     Past this age it is marked stale rather than left to imply currency. */
+  const age=lastStampAt ? Date.now()-lastStampAt : 0;
+  const stale=lastStampAt>0 && age>Math.max(30000, cfg.poll*4*1000);
+  el("banner").classList.toggle("stale", stale);
+  el("staleBadge").hidden=!stale;
+  if(stale){
+    el("updatedText").textContent=sourceLabel(cfg.url)+" \u00b7 last read "+fmtAge(age)+" ago, not current";
     return;
   }
   const t=new Date(lastStampAt||Date.now());
