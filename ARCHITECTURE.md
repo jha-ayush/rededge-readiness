@@ -106,7 +106,7 @@ The risk of three implementations is drift. That is managed by treating the eval
 
 - Identical thresholds and config schema across all three.
 - Identical demo fixtures, so the same scenario produces the same state everywhere.
-- A parity harness that loads the web and iOS evaluators side by side and asserts they agree on every canonical scenario.
+- A parity harness (`parity_check.js`) that loads the web and iOS evaluators out of the shipped files, side by side, and asserts they agree on every canonical scenario, on every individual check, and on the unknown-value and no-link cases. It runs in CI.
 - A Python test suite that cross-checks the same scenarios and the same states.
 
 ---
@@ -182,7 +182,9 @@ The honest summary is that the camera itself is unauthenticated and unencrypted 
 
 - **No injection surface from camera data.** Every camera-derived string reaches the interface as text, not markup, on both the web and iOS clients.
 - **Strict headers on the hosted page.** A Content Security Policy plus `nosniff`, `DENY` framing, `no-referrer`, a restrictive permissions policy, and HSTS.
-- **The local proxy is read-only.** GET only, with a fixed target host and an endpoint allowlist. It cannot be turned into an open proxy or an SSRF vector.
+- **The local proxy is read-only.** GET only, with a fixed target host and an endpoint allowlist. Every allowlisted route returns JSON, because the forwarder decodes JSON; a binary route would fail permanently, so none is listed. It cannot be turned into an open proxy or an SSRF vector.
+- **A query string is untrusted input.** The web page takes its configuration from URL parameters, which means a shared link carries it. A link is written by whoever sends it, not by the pilot, so a camera URL arriving that way is restricted to local addresses (RFC1918, loopback, link-local, `.local`, or a same-origin path). The camera is a local device by definition, so a link pointing anywhere else is not a configuration, it is an attempt to show a fabricated readout for a camera nobody is holding. Settings typed by the pilot is the trusted path and is not restricted.
+- **A malformed threshold falls back, it does not vanish.** Numeric parameters are validated rather than passed to `parseFloat` and trusted. An unparseable value yields `NaN`, and `NaN` compares false against every threshold, so an unguarded `free < cfg.sd` silently skips the low-space branch and a nearly full card reads GO. Anything unparseable or negative reverts to the built-in default, and the poll interval is clamped so a crafted link cannot spin the poll loop at zero delay.
 - **No secrets to leak.** There is no auth, no API key, and no cloud service in the runtime path.
 
 ---
@@ -193,8 +195,8 @@ No hardware is required to test any of it.
 
 - **A mock camera** (`rededge_mock.py`), serving the same endpoints, with a scenario per readiness state (nominal, low storage, weak fix, warming up, no card, DLS error, dead link, and more).
 - **A stdlib unittest suite** (`test_rededge.py`), covering the shared readiness logic, robustness against malformed payloads, config precedence, and the offload walk.
-- **A cross-client parity harness**, asserting the web and iOS evaluators agree.
-- **CI on every push and pull request**, compiling and running the suite.
+- **A cross-client parity harness** (`parity_check.js`), asserting the web and iOS evaluators agree check by check, not merely on the final verdict. Verdict-only comparison is not enough: the Python client once agreed on every scenario the tests covered while still reading GO on a payload where the other two read CHECK.
+- **CI on every push and pull request**, which compiles the Python, runs the suite, syntax-checks both JavaScript clients, and runs the parity harness. Two of the three clients are JavaScript, so a Python-only pipeline could not see them.
 
 The mock earns its place by making failure states reachable. A full SD card, a DLS error, a malformed payload, and a dead link are trivial to produce in the mock and nearly impossible to produce on demand with real hardware. The failure paths matter most here, and real hardware is worst at demonstrating them. It is also what keeps the test suite from carrying a five-figure precondition, which in practice is what stops a test suite from being run at all.
 
@@ -206,6 +208,11 @@ test_unrecognized_status_is_not_go
 test_missing_version_degrades_to_check_not_nogo
 test_no_link_is_nogo
 test_snapshot_tolerates_secondary_endpoint_failure
+test_reports_every_contracted_check_in_order
+test_missing_position_accuracy_is_not_a_pass
+test_missing_time_fields_are_not_a_pass
+test_proxy_is_read_only
+test_make_handler_exists
 ```
 
 Each asserts something that must stay true, not something the code currently happens to do. A test named `test_evaluate_returns_dict` passes forever and protects nothing. A test named `never_false_go` fails the day someone optimizes the safety property away, which is the only day a test earns its keep.
