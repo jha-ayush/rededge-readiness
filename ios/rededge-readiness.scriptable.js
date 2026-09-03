@@ -496,7 +496,13 @@ function buildWidget(res, theme) {
   const r = w.addText(res.reason); r.font = Font.systemFont(11);
   r.textColor = new Color(p.text); r.lineLimit = 3;
   w.addSpacer();
-  const t = w.addText("checked " + new Date().toLocaleTimeString([], { hour12: false }));
+  /* iOS decides when a widget re-renders, so this text is baked at render time
+     and can be shown for a long while afterwards. A relative age ("2 min ago")
+     would freeze at whatever it said and quietly become a lie, so the absolute
+     time stays and the label says plainly that this is a snapshot. Tapping it
+     opens the script for a live read. */
+  const t = w.addText("snapshot " + new Date().toLocaleTimeString([], { hour12: false })
+    + ", tap to re-read");
   t.font = Font.regularSystemFont(9); t.textColor = new Color(p.faint);
   return w;
 }
