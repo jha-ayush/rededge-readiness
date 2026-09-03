@@ -243,6 +243,19 @@ def evaluate(snapshot, cfg):
     checks.append(("GPS fix", ("%d sats" % sats) if sats is not None else "--",
                    state, note))
 
+    # Position accuracy. Reported separately from the fix itself because the two
+    # fail independently: a receiver can hold plenty of satellites and still
+    # report an error ellipse too wide for the survey. Splitting them also keeps
+    # this client's rows identical to the phone and the web page.
+    state, note = "GO", "threshold %g m" % cfg["pacc"]
+    if pacc is None:
+        state, note = "UNKNOWN", "not reported"
+    elif isinstance(pacc, (int, float)) and pacc > cfg["pacc"]:
+        state = "CHECK"
+    checks.append(("Position accuracy",
+                   ("%.1f m" % pacc) if isinstance(pacc, (int, float)) else "--",
+                   state, note))
+
     # Light sensor (DLS)
     dls = s.get("dls_status")
     state, note = "GO", "irradiance sensor active"
@@ -267,6 +280,18 @@ def evaluate(snapshot, cfg):
         state, note = "CHECK", "below %g V floor, verify pack" % cfg["volts"]
     checks.append(("Supply voltage",
                    ("%.2f V" % v) if isinstance(v, (int, float)) else "--",
+                   state, note))
+
+    # Time source. Geotags and reflectance both depend on a valid clock, so a
+    # camera that reports neither a source nor a validity flag is unconfirmed
+    # rather than fine.
+    ts, valid = s.get("time_source"), s.get("utc_time_valid")
+    state, note = "GO", (("%s time source" % ts) if ts else "time valid")
+    if valid is False:
+        state, note = "CHECK", "UTC time not yet valid"
+    elif ts is None and valid is None:
+        state, note = "UNKNOWN", "time source not reported"
+    checks.append(("Time source", ts or ("valid" if valid else "--"),
                    state, note))
 
     # Camera rig
