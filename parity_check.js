@@ -34,7 +34,7 @@ const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 
-const WEB = path.join(__dirname, "web", "rededge-readiness.html");
+const WEB = path.join(__dirname, "web", "app.js");
 const IOS = path.join(__dirname, "ios", "rededge-readiness.scriptable.js");
 
 // The expected state for every canonical scenario. This table is the contract.
@@ -72,13 +72,9 @@ function fail(msg) {
  * because it wires up DOM handlers and timers that have no meaning here; every
  * pure function above that marker is kept exactly as it ships. */
 function loadWeb() {
-  const html = fs.readFileSync(WEB, "utf8");
-  const open = html.indexOf("<script>");
-  const close = html.lastIndexOf("</script>");
-  if (open === -1 || close === -1) throw new Error("no script block in " + WEB);
-  let js = html.slice(open + "<script>".length, close);
+  let js = fs.readFileSync(WEB, "utf8");
   const boot = js.indexOf("/* ---------- boot");
-  if (boot === -1) throw new Error("boot marker missing; web file layout changed");
+  if (boot === -1) throw new Error("boot marker missing; app.js layout changed");
   js = js.slice(0, boot);
 
   /* The page wires some DOM handlers above the boot marker. Returning a
