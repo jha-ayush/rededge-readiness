@@ -185,7 +185,7 @@ in the Settings menu for the iPhone script.
 
 RedEdge Readiness is a SudoKodes LLC project, from the makers of
 <a href="https://uas-skycheck.app" target="_blank" rel="noopener noreferrer">UAS SkyCheck</a>,
-built and maintained by an FAA Part 107 certificated remote pilot. It is a
+built and maintained by an FAA Part 107 remote pilot. It is a
 standalone tool for multispectral sensor readiness, separate from SkyCheck's
 airspace focus.
 
