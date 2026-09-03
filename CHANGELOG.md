@@ -130,12 +130,34 @@ clients, and runs the parity harness.
 
 The test suite grew from 12 tests to 19.
 
+### Changed: type chosen for reading in the field, and no webfont fetch
+
+The display stack fell back to Arial Narrow, a condensed face. A pilot reads
+this on camera WiFi with no internet, so the downloaded font never arrived and
+the fallback is what the field actually got. That meant the giant
+GO / CHECK / NO-GO word, the one element the tool exists to deliver, rendered at
+its narrowest exactly where it is read fastest, at a glance, in bright sun.
+
+The page now uses system faces only, which resolve to San Francisco, Segoe UI or
+Roboto depending on platform, are built for screen legibility, and render
+identically online and off. Figures a pilot acts on carry a slashed zero, so 0
+cannot be misread as O, and tabular figures, so the reading column holds still
+as values update on each poll instead of jittering.
+
+Two consequences followed. The page now makes **zero external requests**, which
+is what the zero-dependency, offline-first design had claimed all along. And
+with no font fetch, the Google origins in the Content Security Policy became
+dead grants, so `style-src` lost its external origin and `font-src` is now
+`'none'`.
+
+The tradeoff, stated plainly: the wordmark and the state word no longer use a
+distinct display face, so the brand reads slightly plainer than the hosted demo
+did. Legibility in the field won over identity on a desk. Self-hosting a display
+font in `web/` would recover the identity without reintroducing an external
+request, if that trade is ever worth revisiting.
+
 ### Still open, deliberately
 
-- **Google Fonts** is the only external runtime dependency, which sits against
-  the offline-first and zero-dependency design. In the field, on camera WiFi
-  with no internet, the fonts never load and the page renders in fallback
-  faces, so the intended typography only appears in the hosted demo.
 - **`script-src 'unsafe-inline'`** remains in the Content Security Policy. The
   page is a single self-contained file with no build step, which is a property
   worth keeping; externalizing the script would tighten the policy and cost
