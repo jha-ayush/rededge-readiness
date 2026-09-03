@@ -22,8 +22,8 @@ jobs:
       - name: Run tests
         run: python -m unittest test_rededge -v
 
-      # Two of the three clients are JavaScript. Without the checks below, a
-      # syntax error in the iPhone script or in the web page ships undetected,
+      # Two of the three clients are JavaScript. Without the steps below, a
+      # syntax error in the iPhone script or the web page ships undetected,
       # because the Python suite cannot see either of them.
       - uses: actions/setup-node@v4
         with:
@@ -34,3 +34,10 @@ jobs:
 
       - name: Syntax check (web page inline script)
         run: sed -n '/<script>/,/<\/script>/p' web/rededge-readiness.html | sed '1d;$d' | node --check -
+
+      # The readiness logic exists three times, once per client. This is what
+      # keeps the copies from drifting apart: it runs every canonical scenario
+      # through the web and iOS evaluators and fails if they disagree with each
+      # other or with the expected table that test_rededge.py holds Python to.
+      - name: Cross-client parity
+        run: node parity_check.js
