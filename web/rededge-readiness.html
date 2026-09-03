@@ -483,14 +483,65 @@ const DEFAULTS = {
   url:"http://192.168.10.254", sd:2, sats:6, pacc:5, volts:4.2,
   cams:0, poll:3, fw:"", dls:false
 };
+
+/* The camera is a local device by definition: it serves its API over the WiFi
+   or Ethernet link you are physically joined to. So a camera URL arriving in a
+   query string did not come from the pilot, it came from whoever wrote the
+   link, and a link that quietly repointed this tool at a foreign host could
+   show a fabricated GO for a camera nobody is holding. Query strings are
+   therefore treated as untrusted and restricted to local addresses. Settings,
+   typed by the pilot on purpose, is not restricted. */
+function isLocalCameraUrl(u){
+  if(!u) return false;
+  if(u.startsWith("/")) return true;                 // same-origin proxy, e.g. /cam
+  let h;
+  try{ h=new URL(u, location.href).hostname; }catch(_){ return false; }
+  if(h==="localhost" || h.endsWith(".local")) return true;
+  if(/^127\./.test(h)) return true;                  // loopback
+  if(/^10\./.test(h)) return true;                   // RFC1918
+  if(/^192\.168\./.test(h)) return true;             // RFC1918
+  if(/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return true;
+  if(/^169\.254\./.test(h)) return true;             // link-local
+  return false;
+}
+
+/* Both entry points into the config, a shared link and the Settings form, run
+   through the same sanitizer. Keeping one copy is the point: the two paths
+   previously clamped differently, so a value rejected from a link was accepted
+   from the form. */
+function sanitizeCfg(c){
+  for(const k of Object.keys(DEFAULTS)){
+    if(typeof DEFAULTS[k]!=="number") continue;
+    const n=parseFloat(c[k]);
+    c[k]=(isFinite(n) && n>=0) ? n : DEFAULTS[k];
+  }
+  // A zero or absent poll interval becomes setInterval(fn, 0), which polls the
+  // camera as fast as the network allows and flattens a phone battery. The
+  // ceiling keeps the "next in" countdown honest rather than effectively frozen.
+  c.poll=Math.min(Math.max(c.poll,1),3600);
+  return c;
+}
+
 function loadCfg(){
   const q=new URLSearchParams(location.search), c={...DEFAULTS};
   for(const k of Object.keys(DEFAULTS)){
     if(!q.has(k)) continue;
     const v=q.get(k);
-    if(typeof DEFAULTS[k]==="number") c[k]=parseFloat(v);
+    if(typeof DEFAULTS[k]==="number"){
+      /* A malformed number must never silently disable a threshold. NaN
+         compares false against everything, so a cfg.sd of NaN makes
+         "free < cfg.sd" false, skips the low-space branch entirely, and a
+         nearly full card reads GO. The same holds for satellites, position
+         error and voltage. sanitizeCfg puts the default back. */
+      c[k]=parseFloat(v);
+    }
     else if(typeof DEFAULTS[k]==="boolean") c[k]=(v==="1"||v==="true");
     else c[k]=v;
+  }
+  sanitizeCfg(c);
+  if(q.has("url") && !isLocalCameraUrl(c.url)){
+    console.warn("Ignoring non-local camera URL from the query string:", c.url);
+    c.url=DEFAULTS.url;
   }
   return c;
 }
@@ -859,13 +910,17 @@ function openSettings(){ el("help").hidden=true; el("settings").hidden=false; fi
 el("hintSettings").onclick=openSettings;
 el("helpToSettings").onclick=openSettings;
 el("applyBtn").onclick=()=>{
-  cfg={
+  // Settings is the trusted path (the pilot typed it), so the camera URL is not
+  // restricted to local addresses here as it is for a link. The numbers still
+  // go through the shared sanitizer so a blank or nonsense field cannot leave a
+  // threshold in a state that never fires.
+  cfg=sanitizeCfg({
     url:el("cfgUrl").value.trim()||DEFAULTS.url,
-    sd:parseFloat(el("cfgSd").value)||0, sats:parseInt(el("cfgSats").value)||0,
-    pacc:parseFloat(el("cfgPacc").value)||0, volts:parseFloat(el("cfgVolts").value)||0,
-    cams:parseInt(el("cfgCams").value)||0, poll:parseFloat(el("cfgPoll").value)||3,
+    sd:parseFloat(el("cfgSd").value), sats:parseInt(el("cfgSats").value),
+    pacc:parseFloat(el("cfgPacc").value), volts:parseFloat(el("cfgVolts").value),
+    cams:parseInt(el("cfgCams").value), poll:parseFloat(el("cfgPoll").value),
     fw:el("cfgFw").value.trim(), dls:el("cfgDls").checked
-  };
+  });
   saveCfg(cfg); schedule(); tick(); el("settings").hidden=true;
 };
 el("resetBtn").onclick=()=>{ cfg={...DEFAULTS}; saveCfg(cfg); fillSettings(); schedule(); tick(); };
