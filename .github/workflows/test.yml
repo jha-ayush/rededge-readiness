@@ -11,10 +11,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Compile check
+
+      - name: Compile check (Python)
         run: python -m py_compile rededge.py rededge_mock.py test_rededge.py
+
       - name: Run tests
         run: python -m unittest test_rededge -v
+
+      # Two of the three clients are JavaScript. Without the checks below, a
+      # syntax error in the iPhone script or in the web page ships undetected,
+      # because the Python suite cannot see either of them.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Syntax check (iPhone script)
+        run: node --check ios/rededge-readiness.scriptable.js
+
+      - name: Syntax check (web page inline script)
+        run: sed -n '/<script>/,/<\/script>/p' web/rededge-readiness.html | sed '1d;$d' | node --check -
