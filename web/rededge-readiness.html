@@ -21,14 +21,19 @@
 <meta name="twitter:image" content="https://rededge-readiness.write2ayushjha.workers.dev/rededge-social.png">
 <link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="%230a0c0e"/><circle cx="32" cy="32" r="20" fill="none" stroke="%232fe39a" stroke-width="4"/><circle cx="32" cy="32" r="11" fill="none" stroke="%232fe39a" stroke-width="2.5" opacity="0.55"/><circle cx="32" cy="32" r="4.5" fill="%232fe39a"/></svg>'>
 <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTQiIGZpbGw9IiMwYTBjMGUiLz48Y2lyY2xlIGN4PSIzMiIgY3k9IjMyIiByPSIyMCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMmZlMzlhIiBzdHJva2Utd2lkdGg9IjQiLz48Y2lyY2xlIGN4PSIzMiIgY3k9IjMyIiByPSIxMSIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMmZlMzlhIiBzdHJva2Utd2lkdGg9IjIuNSIgb3BhY2l0eT0iMC41NSIvPjxjaXJjbGUgY3g9IjMyIiBjeT0iMzIiIHI9IjQuNSIgZmlsbD0iIzJmZTM5YSIvPjwvc3ZnPg==">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --display:"Archivo","Arial Narrow",sans-serif;
-    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
-    --body:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+    /* System faces only, no webfont fetch. A pilot reads this on camera WiFi
+       with no internet, so a downloaded font never arrives in the field and the
+       page would render in whatever the fallback happened to be. Worse, the old
+       display fallback was Arial Narrow, a condensed face, so the giant
+       GO / CHECK / NO-GO word rendered at its narrowest exactly where it is
+       read fastest, at a glance, in bright sun. These stacks resolve to faces
+       built for screen legibility on every platform (San Francisco, Segoe UI,
+       Roboto) and look the same online and off. */
+    --display:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --body:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Roboto Mono",monospace;
     --ease:.24s cubic-bezier(.4,0,.2,1);
   }
   :root[data-theme="dark"]{
@@ -45,6 +50,10 @@
     --glow:.13; --tagbg:rgba(20,40,60,.05); --shadow:0 2px 4px rgba(20,40,60,.06), 0 8px 20px -6px rgba(20,40,60,.12);
     --topglow:rgba(14,155,105,.07);
   }
+  /* Every figure a pilot acts on. A slashed zero separates 0 from O, and
+     tabular figures keep the column from jittering as values change on each
+     poll, so the eye can compare a reading to the one before it. */
+  .check .read,.state-word,.updated,.tag{font-variant-numeric:tabular-nums slashed-zero}
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{background:var(--bg);color:var(--text);font-family:var(--body)}
   body{
@@ -165,7 +174,7 @@
   .check .desc{font-size:11.5px;color:var(--faint);line-height:1.45;max-height:0;opacity:0;overflow:hidden;
     transition:max-height var(--ease),opacity var(--ease),margin var(--ease)}
   .check.open .desc{max-height:120px;opacity:1;margin-top:6px}
-  .check .read{font-family:var(--mono);font-size:13px;color:var(--text);text-align:right;white-space:nowrap;align-self:flex-start}
+  .check .read{font-family:var(--mono);font-size:13.5px;font-weight:500;color:var(--text);text-align:right;white-space:nowrap;align-self:flex-start}
   .check .read .u{color:var(--faint);font-size:11px;margin-left:2px}
   .check[data-s="CHECK"] .read{color:var(--check)}
   .check[data-s="NO-GO"] .read{color:var(--nogo)}
