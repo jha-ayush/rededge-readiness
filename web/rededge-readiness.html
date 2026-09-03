@@ -829,13 +829,22 @@ function stamp(){
   paintStatus();
 }
 let lastStampAt=0, nextAt=0;
+/* A GO is the moment a pilot commits to flying, so the readout should say what
+   it actually read. Previously the camera address appeared only when the link
+   failed, which meant a green result and a green result from the wrong address
+   looked identical. */
+function sourceLabel(u){
+  if(!u) return "unknown source";
+  if(u.startsWith("/")) return "local proxy " + u;
+  try{ return new URL(u, location.href).host; }catch(_){ return u; }
+}
 function paintStatus(){
   if(el("source").value!=="live"){
     el("updatedText").textContent="demo data \u00b7 not a live reading";
     return;
   }
   const t=new Date(lastStampAt||Date.now());
-  let line="updated "+t.toLocaleTimeString([], {hour12:false});
+  let line=sourceLabel(cfg.url)+" \u00b7 updated "+t.toLocaleTimeString([], {hour12:false});
   if(nextAt){
     const secs=Math.max(0,Math.ceil((nextAt-Date.now())/1000));
     line+=" \u00b7 next in "+secs+"s";
