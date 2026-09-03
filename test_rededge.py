@@ -235,6 +235,44 @@ class Robustness(unittest.TestCase):
         self.assertEqual(rededge.evaluate(snap, base_cfg())["overall"], "CHECK")
 
 
+class CheckContract(unittest.TestCase):
+    """All three clients must report the same named checks, not merely the same
+    verdict. Python previously folded position accuracy and time validity into
+    the GPS row, so a camera that omitted p_acc and the time fields read GO here
+    while the phone and the web page read CHECK on the identical payload. Equal
+    verdicts on the happy path hid a real divergence on the unhappy one."""
+
+    EXPECTED_LABELS = [
+        "SD storage", "GPS fix", "Position accuracy", "Light sensor",
+        "Supply voltage", "Time source", "Camera rig", "Firmware",
+    ]
+
+    def _healthy(self, **over):
+        st = {"sd_status": "Ok", "sd_gb_free": 20.1, "bus_volts": 4.69,
+              "gps_used_sats": 9, "p_acc": 2.4, "dls_status": "Ok",
+              "time_source": "GPS", "utc_time_valid": True}
+        st.update(over)
+        return {"ok": True, "status": st, "version": {"sw_version": "v7.1.0"},
+                "network": {"network_map": [{"device_type": "Camera",
+                                             "sw_version": "v7.1.0",
+                                             "sd_status": "Ok"}]}}
+
+    def test_reports_every_contracted_check_in_order(self):
+        res = rededge.evaluate(self._healthy(), base_cfg())
+        self.assertEqual([c[0] for c in res["checks"]], self.EXPECTED_LABELS)
+
+    def test_missing_position_accuracy_is_not_a_pass(self):
+        snap = self._healthy()
+        del snap["status"]["p_acc"]
+        self.assertNotEqual(rededge.evaluate(snap, base_cfg())["overall"], "GO")
+
+    def test_missing_time_fields_are_not_a_pass(self):
+        snap = self._healthy()
+        del snap["status"]["time_source"]
+        del snap["status"]["utc_time_valid"]
+        self.assertNotEqual(rededge.evaluate(snap, base_cfg())["overall"], "GO")
+
+
 class LocalServeProxy(unittest.TestCase):
     """The local serve/proxy bridge had no coverage at all, and that is exactly
     how it came to ship broken: the definition of make_handler was lost, its
