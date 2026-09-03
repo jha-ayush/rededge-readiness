@@ -4,7 +4,7 @@ Design notes for a preflight readiness tool for the MicaSense RedEdge and Altum 
 
 **Is this sensor ready to capture good data, right now, and why?**
 
-This document covers the architecture and the reasoning behind it. For what the tools are and how to install them, see [README.md](README.md). For the day-to-day field flow, see [OPERATING.md](OPERATING.md). A hosted demo of the interface is at <a href="https://rededge-api.write2ayushjha.workers.dev/" target="_blank" rel="noopener noreferrer">rededge-api.write2ayushjha.workers.dev</a> (demo states only, see [Deployment](#deployment)).
+This document covers the architecture and the reasoning behind it. For what the tools are and how to install them, see [README.md](README.md). For the day-to-day field flow, see [OPERATING.md](OPERATING.md). A hosted demo of the interface is at <a href="https://rededge-readiness.write2ayushjha.workers.dev/" target="_blank" rel="noopener noreferrer">rededge-readiness.write2ayushjha.workers.dev</a> (demo states only, see [Deployment](#deployment)).
 
 ---
 
