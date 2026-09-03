@@ -41,3 +41,10 @@ jobs:
       # other or with the expected table that test_rededge.py holds Python to.
       - name: Cross-client parity
         run: node parity_check.js
+
+      # The web page takes its configuration from URL parameters, so a shared
+      # link carries it. This holds that boundary: a malformed threshold must
+      # fall back rather than becoming NaN and disabling the check entirely, and
+      # a link must not be able to point the tool at a non-local host.
+      - name: Web config boundary
+        run: node web_config_check.js
