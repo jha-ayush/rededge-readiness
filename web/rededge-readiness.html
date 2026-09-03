@@ -195,6 +195,10 @@
     padding-top:10px;border-top:1px solid var(--line);font-family:var(--mono);font-size:11px;letter-spacing:.02em}
   .foot-prod{color:var(--muted);letter-spacing:.02em}
   .foot-link{color:var(--muted);text-decoration:underline;text-underline-offset:2px}
+  .cred{display:inline-flex;align-items:center;gap:7px;margin:2px 0 10px;padding:6px 12px;
+    border:1px solid var(--line);border-radius:999px;background:var(--panel-2);
+    color:var(--text);font-family:var(--mono);font-size:11.5px;font-weight:600;letter-spacing:.03em}
+  .cred .ck{display:inline-flex;color:var(--go);font-weight:800}
   .foot-link:hover{color:var(--text)}
 
   /* Contextual hint (e.g. live + no link) */
@@ -462,7 +466,8 @@
   <footer class="foot">
     <p class="foot-note"><b>Fail toward caution.</b> Any check that cannot be confirmed reads UNKNOWN and is treated as CHECK; a lost link reads NO-GO. The tool never returns a clear pass on missing data. It reports sensor readiness for good capture, not flight legality.</p>
     <p class="foot-note">RedEdge and Altum are products of MicaSense (AgEagle). This is an independent tool, not affiliated with or endorsed by them.</p>
-    <p class="foot-note">From the makers of <a class="foot-link" href="https://uas-skycheck.app" target="_blank" rel="noopener">UAS SkyCheck</a>. Built and maintained by an FAA Part 107 certificated remote pilot.</p>
+    <p class="foot-note">From the makers of <a class="foot-link" href="https://uas-skycheck.app" target="_blank" rel="noopener">UAS SkyCheck</a>.</p>
+    <div class="cred"><span class="ck">&#10003;</span> FAA Part 107 Certificated Remote Pilot</div>
     <div class="foot-bar">
       <span>&copy; 2026 SudoKodes LLC</span>
       <span class="foot-prod">RedEdge Readiness</span>
