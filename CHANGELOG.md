@@ -156,12 +156,48 @@ did. Legibility in the field won over identity on a desk. Self-hosting a display
 font in `web/` would recover the identity without reintroducing an external
 request, if that trade is ever worth revisiting.
 
+### Fixed: the trust boundary had a bypass, found by its own guard
+
+The check that restricts a link-supplied camera URL to local addresses treated
+anything beginning with `/` as a same-origin path. But `//evil.example` also
+begins with `/`, and it is not a path: a protocol-relative URL resolves to a
+remote origin. So the control written to stop a link pointing the tool at a
+foreign host could be walked past with one extra slash.
+
+Worth recording plainly, because the fix had been reported as complete. It was
+reviewed, tested against several remote URLs, and still wrong. What caught it was
+`web_config_check.js`, written afterwards to guard that boundary: it failed on
+its first clean run against the code it was written to protect. Reading a fix is
+not the same as constraining it.
+
+### Added: a guard on the web configuration boundary
+
+`web_config_check.js` holds the boundary that URL parameters cross. It asserts
+that no threshold can end up as `NaN`, since a `NaN` threshold is not a loose
+threshold but the absence of one, that the specific failures which shipped still
+trip (a card at 0.2 GB, zero satellites, a pack at 3.1 V), that the poll interval
+stays clamped, that remote and protocol-relative URLs are refused, and that
+legitimate local addresses and the `/cam` proxy still work, so the guard cannot
+protect a pilot out of a working tool. It runs in CI.
+
+### Changed: the page forbids inline script
+
+The web client moved out of the HTML into `web/app.js`, which let the Content
+Security Policy drop `script-src 'unsafe-inline'` for `script-src 'self'`.
+
+Nothing injects script today: camera data reaches the DOM through `textContent`
+and URL parameters are sanitized. The point is that the policy no longer depends
+on that continuing to be true. `rededge.py serve` now serves the page's sibling
+assets from an explicit three-entry allowlist rather than the directory, because
+a server that hands over whatever sits next to the page is one traversal bug away
+from serving the rest of the disk. Traversal and arbitrary paths are refused,
+verified.
+
+There is still no build step and no bundler: `app.js` is the file that ships,
+readable as served.
+
 ### Still open, deliberately
 
-- **`script-src 'unsafe-inline'`** remains in the Content Security Policy. The
-  page is a single self-contained file with no build step, which is a property
-  worth keeping; externalizing the script would tighten the policy and cost
-  that.
 - **No hardware has been read.** The mock encodes assumptions about what the
   camera reports. Until a physical RedEdge or Altum has been on the WiFi, those
   assumptions are unverified. The design accounts for this by failing toward
