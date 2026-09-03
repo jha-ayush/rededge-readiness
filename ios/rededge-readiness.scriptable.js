@@ -280,14 +280,17 @@ async function countCaptures(s) {
   async function walk(remote) {
     const sub = remote.replace(/^\/+/, "");
     const listing = await getJSON(s, "/files/" + sub);
-    for (const f of (listing.files || [])) {
+    // A camera that answers with something other than an object is treated as
+    // an empty listing rather than crashing the walk mid-flight.
+    const node = (listing && typeof listing === "object") ? listing : {};
+    for (const f of (Array.isArray(node.files) ? node.files : [])) {
       bytes += (f.size || 0);
       const name = f.name || "";
       if (name.toUpperCase().startsWith("IMG_") && name.includes("_")) {
         caps.add(remote + "|" + name.substring(0, name.lastIndexOf("_")));
       }
     }
-    for (const d of (listing.directories || [])) {
+    for (const d of (Array.isArray(node.directories) ? node.directories : [])) {
       if ((remote === "" || remote === "/") && d.toUpperCase().endsWith("SET")) sets++;
       await walk((remote.replace(/\/+$/, "") + "/" + d).replace(/^\/+/, ""));
     }
@@ -301,12 +304,18 @@ async function runPostflight(s) {
   try { info = await countCaptures(s); }
   catch (e) { return evaluate({ ok: false }, s); }  // reuse the no-link readout
   let st = {};
-  try { st = await getJSON(s, "/status"); } catch (e) { /* SD line optional */ }
+  try {
+    const raw = await getJSON(s, "/status");
+    if (raw && typeof raw === "object") st = raw;
+  } catch (e) { /* SD line optional */ }
   const ok = info.captures > 0;
+  // Nothing here reads GO on a zero count. A post-flight card showing "0 SET
+  // folders" in green beside a caution is the same false reassurance this tool
+  // exists to prevent, so the supporting rows follow the count they report.
   const checks = [
     { label: "Captures", read: String(info.captures), unit: "", state: ok ? "GO" : "CHECK", note: ok ? "image sets on the card" : "card has no images" },
-    { label: "SET folders", read: String(info.sets), unit: "", state: "GO", note: "capture folders" },
-    { label: "Data on card", read: (info.bytes / 1e6).toFixed(1), unit: "MB", state: "GO", note: "total image bytes" },
+    { label: "SET folders", read: String(info.sets), unit: "", state: info.sets > 0 ? "GO" : "CHECK", note: info.sets > 0 ? "capture folders" : "no capture folders found" },
+    { label: "Data on card", read: (info.bytes / 1e6).toFixed(1), unit: "MB", state: info.bytes > 0 ? "GO" : "CHECK", note: info.bytes > 0 ? "total image bytes" : "no image data found" },
   ];
   if (typeof st.sd_gb_free === "number") {
     checks.push({ label: "SD free", read: st.sd_gb_free.toFixed(1), unit: "GB", state: "GO", note: "remaining space" });
