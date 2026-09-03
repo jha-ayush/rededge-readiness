@@ -36,7 +36,7 @@ const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 
-const WEB = path.join(__dirname, "web", "rededge-readiness.html");
+const WEB = path.join(__dirname, "web", "app.js");
 
 function fail(msg) {
   console.error("CONFIG GUARD FAIL: " + msg);
@@ -46,13 +46,9 @@ function fail(msg) {
 /* Load the page's pure functions with a query string of our choosing. The
  * shipped file is read directly, so this cannot pass against a stale copy. */
 function withQuery(search) {
-  const html = fs.readFileSync(WEB, "utf8");
-  const open = html.indexOf("<script>");
-  const close = html.lastIndexOf("</script>");
-  if (open === -1 || close === -1) throw new Error("no script block in " + WEB);
-  let js = html.slice(open + "<script>".length, close);
+  let js = fs.readFileSync(WEB, "utf8");
   const boot = js.indexOf("/* ---------- boot");
-  if (boot === -1) throw new Error("boot marker missing; web file layout changed");
+  if (boot === -1) throw new Error("boot marker missing; app.js layout changed");
   js = js.slice(0, boot);
 
   const node = () => new Proxy({}, {
