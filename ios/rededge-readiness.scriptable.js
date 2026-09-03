@@ -401,6 +401,8 @@ function buildHTML(res, theme, isDemo, noLink) {
   .foot{margin-top:18px;padding-top:13px;border-top:1px solid var(--line);font-size:11.5px;color:var(--faint);line-height:1.5}
   .foot-bar{display:flex;justify-content:space-between;gap:10px;margin-top:10px;padding-top:9px;border-top:1px solid var(--line);font-family:var(--mono);font-size:10.5px}
   .foot-prod{color:var(--muted);letter-spacing:.02em}
+  .cred{display:inline-flex;align-items:center;gap:6px;margin:8px 0 2px;padding:5px 11px;border:1px solid var(--line);border-radius:999px;background:var(--tagbg);color:var(--text);font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.03em}
+  .cred .ck{color:var(--go);font-weight:800}
   .prep{margin-top:14px;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
   .prep-h{padding:13px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:8px;cursor:pointer}
   .prep-h .pc{margin-left:auto;color:var(--faint);letter-spacing:0;text-transform:none}
@@ -444,7 +446,8 @@ function buildHTML(res, theme, isDemo, noLink) {
   </div>
   <div class="foot">Fail toward caution. Anything unconfirmed counts as CHECK; a lost link is NO-GO. Reports sensor readiness, not flight legality. Re-run to refresh.
     <div style="margin-top:8px">RedEdge and Altum are products of MicaSense (AgEagle). Independent tool, not affiliated with or endorsed by them.</div>
-    <div style="margin-top:6px">From the makers of UAS SkyCheck. Built by an FAA Part 107 certificated remote pilot.</div>
+    <div style="margin-top:6px">From the makers of UAS SkyCheck.</div>
+    <div class="cred"><span class="ck">&#10003;</span> FAA Part 107 Certificated Remote Pilot</div>
     <div class="foot-bar"><span>&copy; 2026 SudoKodes LLC</span><span class="foot-prod">RedEdge Readiness</span></div>
   </div>
 <script>(function(){
