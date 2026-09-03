@@ -465,9 +465,21 @@ def make_handler(page_path, client):
     capture, delete a file, or reformat a card.
     """
     page_bytes = b""
+    page_dir = None
     if page_path and os.path.exists(page_path):
         with open(page_path, "rb") as f:
             page_bytes = f.read()
+        page_dir = os.path.dirname(os.path.abspath(page_path)) or "."
+
+    # Sibling files the page is allowed to pull from the same directory. Named
+    # explicitly rather than serving the directory, because a static server that
+    # will hand over "whatever is next to the page" is one path-traversal bug
+    # away from serving the rest of the disk. The page needs exactly these.
+    STATIC_ALLOW = {
+        "app.js": "application/javascript; charset=utf-8",
+        "favicon.svg": "image/svg+xml",
+        "rededge-social.png": "image/png",
+    }
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_):
@@ -492,6 +504,18 @@ def make_handler(page_path, client):
                 else:
                     self._send(200, page_bytes, "text/html; charset=utf-8")
                 return
+            name = path.lstrip("/")
+            if name in STATIC_ALLOW and page_dir:
+                # os.path.basename strips any traversal before it reaches disk,
+                # and the name is already known-good from the allowlist.
+                fp = os.path.join(page_dir, os.path.basename(name))
+                if os.path.exists(fp):
+                    with open(fp, "rb") as f:
+                        self._send(200, f.read(), STATIC_ALLOW[name])
+                else:
+                    self._send(404, b"not found", "text/plain")
+                return
+
             if path.startswith("/cam/"):
                 route = path[len("/cam/"):]
                 head = route.split("/", 1)[0]
