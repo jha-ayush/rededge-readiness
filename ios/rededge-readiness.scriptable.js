@@ -385,7 +385,7 @@ function buildHTML(res, theme, isDemo, noLink, cfg) {
 <style>
   :root{--bg:${p.bg};--panel:${p.panel};--line:${p.line};--text:${p.text};--muted:${p.muted};--faint:${p.faint};
     --tagbg:${p.tagbg};--shadow:${p.shadow};
-    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;
     --body:-apple-system,system-ui,sans-serif;--state:${c}}
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{background:var(--bg);color:var(--text);font-family:var(--body);-webkit-font-smoothing:antialiased}
@@ -415,7 +415,11 @@ function buildHTML(res, theme, isDemo, noLink, cfg) {
   .meta{min-width:0;flex:1}.label{font-size:14px;font-weight:500;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .tag{font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.05em;padding:2px 6px;border-radius:5px;background:var(--tagbg)}
   .note{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.35}
-  .read{font-family:var(--mono);font-size:14px;text-align:right;white-space:nowrap}
+  /* Slashed zero separates 0 from O and tabular figures hold the column steady,
+     so a value can be compared against the one read a moment ago. */
+  .read{font-family:var(--mono);font-size:14px;font-weight:500;text-align:right;white-space:nowrap;
+    font-variant-numeric:tabular-nums slashed-zero}
+  .state,.stamp,.tag{font-variant-numeric:tabular-nums slashed-zero}
   .read .u{color:var(--faint);font-size:11px}
   .foot{margin-top:18px;padding-top:13px;border-top:1px solid var(--line);font-size:11.5px;color:var(--faint);line-height:1.5}
   .foot-bar{display:flex;justify-content:space-between;gap:10px;margin-top:10px;padding-top:9px;border-top:1px solid var(--line);font-family:var(--mono);font-size:10.5px}
