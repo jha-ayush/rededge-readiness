@@ -32,8 +32,8 @@ jobs:
       - name: Syntax check (iPhone script)
         run: node --check ios/rededge-readiness.scriptable.js
 
-      - name: Syntax check (web page inline script)
-        run: sed -n '/<script>/,/<\/script>/p' web/rededge-readiness.html | sed '1d;$d' | node --check -
+      - name: Syntax check (web client)
+        run: node --check web/app.js
 
       # The readiness logic exists three times, once per client. This is what
       # keeps the copies from drifting apart: it runs every canonical scenario
