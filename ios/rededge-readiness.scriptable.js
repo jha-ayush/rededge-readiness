@@ -354,7 +354,16 @@ function resolveTheme(s) {
   catch (e) { return "dark"; }
 }
 
-function buildHTML(res, theme, isDemo, noLink) {
+/* A GO is the moment a pilot commits to flying, so the readout states what it
+   actually read. The address previously appeared only when the link failed,
+   which made a real pass and a pass from the wrong address look identical. */
+function sourceLabel(u) {
+  if (!u) return "unknown source";
+  if (u.startsWith("/")) return "local proxy " + u;
+  return u.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+}
+
+function buildHTML(res, theme, isDemo, noLink, cfg) {
   const p = PALETTES[theme] || PALETTES.dark;
   const stamp = isDemo ? "simulated data" : ("checked " + new Date().toLocaleTimeString([], { hour12: false }));
   // Escape any camera-derived text before it enters the WebView markup. A
@@ -395,6 +404,7 @@ function buildHTML(res, theme, isDemo, noLink) {
   .state{position:relative;font-weight:900;font-size:clamp(44px,14vw,72px);line-height:.9;color:var(--state)}
   .reason{position:relative;margin-top:12px;font-size:15px;line-height:1.45}
   .sub{color:var(--muted);font-size:12.5px;margin-top:4px;line-height:1.4}
+  .src{color:var(--faint);font-family:var(--mono);font-size:11px;margin-top:9px}
   .tip{margin-top:12px;padding:12px 14px;border-radius:12px;background:var(--tagbg);border:1px solid var(--line);font-size:12.5px;line-height:1.45;color:var(--muted)}
   .tip b{color:var(--text)}
   .checks{margin-top:14px;display:grid;grid-template-columns:1fr;gap:8px}
@@ -433,7 +443,9 @@ function buildHTML(res, theme, isDemo, noLink) {
   <div class="head"><svg class="mark" viewBox="0 0 36 36" aria-hidden="true"><path d="M 19.31 3.06 A 15 15 0 0 1 32.00 12.62" stroke="#4d8df0" stroke-width="3.6" fill="none" stroke-linecap="round"/><path d="M 32.72 15.14 A 15 15 0 0 1 27.03 29.98" stroke="#2fe39a" stroke-width="3.6" fill="none" stroke-linecap="round"/><path d="M 24.81 31.37 A 15 15 0 0 1 8.97 29.98" stroke="#ff5a5a" stroke-width="3.6" fill="none" stroke-linecap="round"/><path d="M 7.03 28.23 A 15 15 0 0 1 4.00 12.62" stroke="#f6943e" stroke-width="3.6" fill="none" stroke-linecap="round"/><path d="M 5.14 10.27 A 15 15 0 0 1 19.31 3.06" stroke="#b06cf0" stroke-width="3.6" fill="none" stroke-linecap="round"/><circle cx="18" cy="18" r="8" fill="none" stroke="#2fe39a" stroke-width="2" opacity="0.5"/><circle cx="18" cy="18" r="3.4" fill="#2fe39a"/></svg><div class="brand"><span class="r">Red</span>Edge Readiness</div>
     <div class="stamp">${isDemo ? '<span class="demo-badge">DEMO</span>' : ''}${stamp}</div></div>
   <div class="banner"><div class="state">${res.overall}</div>
-    <div class="reason">${esc(res.reason)}<div class="sub">${esc(res.sub)}</div></div></div>
+    <div class="reason">${esc(res.reason)}<div class="sub">${esc(res.sub)}</div>
+      <div class="src">${isDemo ? "simulated data, no camera was read"
+        : "read from " + esc(sourceLabel(cfg && cfg.cameraUrl))}</div></div></div>
   ${noLink ? '<div class="tip"><b>No answer from the camera.</b> Confirm you are on the camera WiFi and the base URL is right. On iPhone, also allow Local Network access: Settings, Scriptable, Local Network.</div>' : ''}
   <div class="checks">${rows}</div>
   <div class="prep" id="prep">
@@ -572,7 +584,7 @@ async function main() {
     noLink = !demoKind && snap.ok === false;   // live, and the camera did not answer
   }
   const wv = new WebView();
-  await wv.loadHTML(buildHTML(result, resolveTheme(s), !!demoKind, noLink));
+  await wv.loadHTML(buildHTML(result, resolveTheme(s), !!demoKind, noLink, s));
   await wv.present(true);
   Script.complete();
 }
