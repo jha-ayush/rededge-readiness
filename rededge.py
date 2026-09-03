@@ -95,8 +95,11 @@ def resolve_settings(args):
 
 # Routes the local proxy is allowed to forward. Read-only by design: the
 # browser tool can never trigger a capture, delete a file, or reformat a card.
+# Every route here must return JSON, because the forwarder decodes JSON. A
+# binary route (captures.kmz, image files) would always fail, so it is not
+# listed rather than listed and permanently broken.
 PROXY_ALLOW = ("status", "version", "networkstatus", "camera_info",
-               "timesources", "captures.kmz", "files")
+               "timesources", "files")
 
 
 # ----------------------------------------------------------------------------
@@ -347,7 +350,7 @@ def _color(use):
     return _C if use else {k: "" for k in _C}
 
 
-def render(result, cfg, use_color=True):
+def render(result, use_color=True):
     c = _color(use_color)
     o = result["overall"]
     lines = []
@@ -358,10 +361,6 @@ def render(result, cfg, use_color=True):
         lines.append("  %s  %-18s %-12s %s%s%s"
                      % (dot, label, read, c["dim"], note, c["_"]))
     return "\n".join(lines)
-
-
-def cfg_from_args(a):
-    return resolve_settings(a)
 
 
 # ----------------------------------------------------------------------------
@@ -424,7 +423,22 @@ def count_captures(client):
     return {"sets": sets, "captures": len(captures), "bytes": total_bytes}
 
 
+# ----------------------------------------------------------------------------
+# Local serve and read-only proxy
+# ----------------------------------------------------------------------------
+def make_handler(page_path, client):
+    """Build the HTTP handler for `serve`.
 
+    This exists because a browser cannot read the camera directly: the camera
+    sends no CORS headers, and from an HTTPS page its plain-HTTP address is
+    mixed content. Serving the page and the camera from one local origin
+    removes both problems, which is the only way the web tool reads a real
+    camera.
+
+    The proxy is read-only by construction: only PROXY_ALLOW routes are
+    forwarded, and only GET is implemented, so the browser can never trigger a
+    capture, delete a file, or reformat a card.
+    """
     page_bytes = b""
     if page_path and os.path.exists(page_path):
         with open(page_path, "rb") as f:
@@ -474,10 +488,15 @@ def count_captures(client):
     return Handler
 
 
-def _lan_ip():
+def _lan_ip(camera_base=DEFAULT_URL):
+    """Best-effort local address on the camera's network, used only to print a
+    reachable URL. Routed against the configured camera host so an Ethernet
+    setup (192.168.1.83) reports the right interface, not the WiFi one. No
+    packets are sent; connect() on a UDP socket only selects a route."""
+    host = urllib.parse.urlparse(camera_base).hostname or "192.168.10.254"
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        s.connect(("192.168.10.254", 80))
+        s.connect((host, 80))
         return s.getsockname()[0]
     except OSError:
         return "127.0.0.1"
@@ -488,7 +507,7 @@ def _lan_ip():
 def serve(client, page_path, port):
     handler = make_handler(page_path, client)
     httpd = ThreadingHTTPServer(("0.0.0.0", port), handler)
-    ip = _lan_ip()
+    ip = _lan_ip(client.base)
     print("Serving the readiness page with a CORS proxy to %s" % client.base)
     print("  This machine : http://localhost:%d/?url=%%2Fcam" % port)
     print("  On the WiFi  : http://%s:%d/?url=%%2Fcam" % (ip, port))
@@ -561,12 +580,12 @@ def main(argv=None):
     if args.cmd in ("check", "watch"):
         if args.cmd == "check":
             result = evaluate(snapshot(client), cfg)
-            print(render(result, cfg, use_color))
+            print(render(result, use_color))
             return {"GO": 0, "CHECK": 1, "NO-GO": 2}[result["overall"]]
         while True:
             result = evaluate(snapshot(client), cfg)
             os.system("clear" if os.name != "nt" else "cls")
-            print(render(result, cfg, use_color))
+            print(render(result, use_color))
             print("\n%supdated %s, every %gs, Ctrl-C to stop%s"
                   % (_color(use_color)["dim"], time.strftime("%H:%M:%S"),
                      args.interval, _color(use_color)["_"]))
