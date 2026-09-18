@@ -64,4 +64,4 @@ AgEagle. No trademark rights are claimed or granted.
 
 ## 8. Contact
 
-Licensing enquiries: SudoKodes LLC, write2ayushjha@gmail.com
+Licensing enquiries: SudoKodes LLC, admin@sudokodes.com
