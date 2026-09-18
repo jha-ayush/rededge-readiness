@@ -3,6 +3,23 @@
 Notable changes to RedEdge Readiness. Entries record what changed and, where it
 matters, why, because the reason is usually the part worth keeping.
 
+## Hosted demo moved, 18 September 2026
+
+The Cloudflare account subdomain changed from `write2ayushjha` to `sudokodes`, so
+the hosted demo is now at `rededge-readiness.sudokodes.workers.dev`. The previous
+address no longer resolves.
+
+The reason is presentation rather than engineering: the old hostname carried a
+personal email handle, which reads as a developer sandbox on a page that carries
+the company's copyright line and a licensing contact. Nothing about the Worker
+changed. It remains static assets with no script and no runtime code at the edge.
+
+Updated in the same pass: the `canonical`, `og:url`, `og:image` and
+`twitter:image` tags in `web/rededge-readiness.html`, the **Live** link in
+README.md, and the hosted-demo link in ARCHITECTURE.md. The social preview image
+is served from the same origin, so it would have 404'd on every share until the
+meta tags moved with it.
+
 ## Audit pass, September 2026
 
 A file-by-file audit anchored on one question: a recreational or Part 107 pilot
