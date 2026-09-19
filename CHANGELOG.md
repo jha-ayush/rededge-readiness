@@ -1,7 +1,200 @@
+<!-- CHANGELOG.md -->
 # Changelog
 
 Notable changes to RedEdge Readiness. Entries record what changed and, where it
 matters, why, because the reason is usually the part worth keeping.
+
+## Second audit pass, 19 September 2026
+
+A second file-by-file pass, bottom up, under the same rule as the first: a
+false all-clear must be structurally impossible, not merely unlikely. Every
+fix below carries a test or a harness case that was mutated before it was
+trusted, meaning the fix was reverted and the check confirmed to fail.
+
+### Fixed: the hosted demo was dead, blocked by its own security policy
+
+The hosted page at `rededge-readiness.sudokodes.workers.dev` rendered a
+header, a source menu, the word "..." and nothing else. Loaded in a browser,
+the console said why: `web/_headers` still sent
+`script-src 'unsafe-inline'`, left from when the client script was inline, and
+that directive does not include `'self'`, so the browser refused to load
+`web/app.js`. The page could not run its own client.
+
+The previous audit's changelog and the architecture notes both said the policy
+had been tightened to `script-src 'self'` when the script moved into its own
+file. The file was never changed. That is the finding worth recording plainly:
+the note described the intended state, the review read the note, and nobody
+loaded the page. A claim about a shipped file is not evidence about the file.
+
+`web/_headers` now reads `script-src 'self'`, the dead Google Fonts grants are
+gone (the page fetches no font), and two things hold it there. The Python
+suite parses `web/_headers` and asserts that `script-src` contains `'self'`,
+does not contain `'unsafe-inline'`, and grants no external origin. And the
+local `rededge.py serve` now sends the same page headers from a constant in
+the code, which the suite compares to `web/_headers` line by line, so the two
+cannot drift apart again without the suite saying so.
+
+### Fixed: the read-only proxy could be walked toward an action route
+
+The proxy allowlist checked the first path segment and forwarded the rest
+verbatim, so `/cam/status/../capture` passed as `status` and reached the
+camera as `status/../capture`. Whether that triggered a capture depended on
+how the camera's embedded server treats dot segments, which is not a question
+a proxy whose whole claim is "cannot trigger a capture" should leave to the
+other end.
+
+Routes are now percent-decoded and vetted segment by segment: no empty or dot
+segments, nothing outside `[A-Za-z0-9._-]`, an allowlisted head, and a
+sub-path only under `files/`. The request path is split with `urlsplit` rather
+than `urlparse`, because `urlparse` peels a `;params` tail off the last
+segment before it can be judged. Tests cover the encoded and unencoded forms,
+and the legitimate shapes (`files/`, `files/0000SET/000`) still forward.
+
+### Fixed: a spoofed camera could write outside the offload folder
+
+`offload` joined file and folder names from the card's listing straight onto
+the destination path. The README already says to treat the camera network as
+untrusted, and a device on that network answering with a name like
+`../../escape.tif` would have been written two directories up. Names are now
+required to be single path segments, and the resolved path is required to sit
+under the destination as a second check. A test feeds a hostile listing and
+asserts nothing lands beside or above the folder while the real files still
+arrive. The iPhone post-flight walk applies the same vetting to folder names.
+
+### Fixed: a reading with the wrong type could read GO beside a blank
+
+A string where a number was expected slipped past every comparison in the two
+JavaScript clients: `"abc" < 4.2` coerces to `NaN`, which compares false, so a
+voltage of `"abc"` fell through to GO with `--` in the value column. Python
+raised `TypeError` on the same input, mid-readout. A non-empty firmware string
+was required for the Firmware row, but an empty one read GO.
+
+All three clients now share one rule, written once per language (`_num` and
+`_text` in Python, `num` and `text` in the two scripts): a number is a finite
+number, a status is a non-empty string, and anything else is not a reading and
+reads UNKNOWN. Entries in the device list that are not objects are ignored
+rather than dereferenced. A card whose status is `Ok` but whose free space is
+missing reads UNKNOWN rather than passing on the status alone. The parity
+harness runs thirteen wrong-type probes through all three clients and requires
+every one to agree and none to pass.
+
+### Changed: the parity harness now covers all three clients
+
+`parity_check.js` compared the web and iOS evaluators to each other; Python
+was held only by its own tests, and only to the verdict per scenario. The
+first audit recorded that verdict-only comparison is not enough, and then left
+Python compared that way.
+
+The harness now runs the Python evaluator in a child process, on snapshots
+built from the mock camera's own payloads, and compares all three clients
+check by check on the twelve scenarios, the no-link case, and every unknown,
+wrong-type and agreement probe. It fails, rather than skips, if `python3` is
+missing: a check that cannot run has not passed.
+
+### Changed: one cause flags one row
+
+The GPS row also folded in position accuracy and clock validity, both of
+which have rows of their own. A wide error ellipse lit two rows and the reason
+line named two problems for one cause. The GPS row now reports satellites and
+interference only. Verdicts are unchanged, because the dedicated row still
+flags; the readout just stops double-counting. Pinned in the harness and in
+the Python suite.
+
+### Changed: a device list with no cameras is unconfirmed, not a rig of zero
+
+With "expected cameras" left at 0 (any), an empty or all-junk `network_map`
+read GO with "0 cameras". The camera answered `/status`, so at least one
+camera exists; a map that lists none is a map that could not be read. It now
+reads UNKNOWN. The demo scenarios all list at least one camera, so nothing in
+the shipped fixtures changes.
+
+### Added: the Python and iPhone clients sanitize their settings
+
+The web page validates its thresholds because a `NaN` threshold once disabled a
+check from a link. The other two clients had no equivalent. A string in
+`rededge.json` raised mid-readout; a negative floor could never fire; a
+corrupted settings file on the phone was merged in as-is. `sanitize_settings`
+in Python and `sanitizeSettings` in the iPhone script now apply the same rule
+as the web page: a threshold that is not a finite, non-negative number falls
+back to the default, counts are floored to whole numbers, a zero timeout is
+not a timeout, and Python says on stderr what it replaced. The iPhone Settings
+form runs its raw field text through the same function as the file it saves.
+
+### Fixed: `serve` with no `--page` served a 404
+
+The default page name was `rededge-readiness.html`, resolved against the
+working directory, and no file by that name exists anywhere in the tree (the
+page lives in `web/`). `python3 rededge.py serve` therefore answered every
+request for the page with "page not found". The default is now the shipped
+page beside the script, resolved against the script's own location, so it
+works from any directory; `serve` also warns at the terminal if the page is
+missing rather than leaving the 404 for a browser across the room.
+
+### Fixed: an unknown demo name on the phone showed a healthy GO
+
+`?source=<name>` on an NFC tag or Shortcut fell through to the healthy demo
+fixture for any name that was not a real demo, so a typo produced a GO readout
+(badged DEMO, but GO). The demo names are now one list, shared by the menu and
+the URL handler, and an unknown name runs a live read instead.
+
+### Fixed: the offload command answered a dead link with a traceback
+
+`offload` was the one command that let a `RedEdgeError` escape to the shell.
+It now prints "Could not read the card" and exits 2 like `verify` does, and
+files already pulled stay on disk for the next run to resume past.
+
+### Changed: the page is navigable without a pointer
+
+- The banner's live region now wraps only the verdict and its reason. It used
+  to wrap the whole banner, including the status line that re-renders every
+  second ("next in 3s"), so a screen reader announced a countdown.
+- The pre-flight prep rows are checkboxes to assistive technology
+  (`role="checkbox"`, `aria-checked`), on the web page and in the iPhone
+  readout, and the iPhone rows take the keyboard.
+- Every Settings field has a label associated with it; the in-text "Settings"
+  links in the hint and help panels are buttons, so they take focus.
+- The theme toggle's accessible name follows its state.
+
+### Changed: smaller items
+
+- `web/index.html` is removed. `web/_redirects` already serves the page at
+  the site root, so the file was never reached, and its inline redirect
+  script would have been blocked by the policy above if it ever were.
+- The page's icon is `web/favicon.svg`, referenced as a file, instead of the
+  same drawing embedded twice as data URIs; the SVG `apple-touch-icon`, which
+  iOS does not honor, is gone. The local server already allowlisted the file.
+- The local server sends the cross-origin header on proxy answers only, not on
+  the page and its script, and answers `HEAD` the same as `GET`; the mock does
+  too.
+- The iPhone post-flight card judges "SD free" against the configured floor
+  and lets the worst row set the card's state, as pre-flight does.
+- The iPhone post-flight walk skips entries that are not objects, names that
+  are not strings and sizes that are not numbers, and treats a listing that is
+  not an object as an error rather than an empty card. `rededge.py` does the
+  same in `verify` and `offload`.
+- Terminal columns line up: the state word was padded to three characters, so
+  `NO-GO` and `UNKNOWN` pushed their rows out of alignment.
+- The web client reads `/version` and `/networkstatus` together, as the phone
+  already did and the architecture notes already said.
+- Whole-number thresholds (satellites, cameras) are floored the same way in
+  all three clients; the config guard pins it.
+- The config guard also refuses `javascript:`, `data:` and `file:` camera
+  URLs from a link.
+- CI runs on Node 24 (Node 20 left support in April 2026) with the current
+  action majors, and its token is read-only.
+- The DLS default in the architecture table read "Present and Ok"; the default
+  is that a DLS is optional unless required in settings.
+- A no-op assignment in the mock's route handler is gone.
+- American English throughout: "inquiries".
+
+The test suite grew from 19 tests to 40. The parity harness grew from 12
+scenarios and 5 probes across two clients to 12 scenarios and 29 probes
+across three.
+
+### Still open, deliberately
+
+- **No hardware has been read.** Unchanged from the first pass, and still the
+  largest gap: every fixture here is a model of the camera, not the camera.
 
 ## Hosted demo moved, 18 September 2026
 

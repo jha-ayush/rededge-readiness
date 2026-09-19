@@ -1,3 +1,4 @@
+<!-- ARCHITECTURE.md -->
 # RedEdge Readiness, Architecture
 
 Design notes for a preflight readiness tool for the MicaSense RedEdge and Altum multispectral cameras. It answers one question for a survey pilot standing at the launch site, under time pressure, with gloves on:
@@ -42,6 +43,7 @@ The rest follows from it:
 - **A lost link reads NO-GO.** If the camera does not answer, or answers with something that is not an object, the readout is NO-GO, not a stale pass.
 - **The worst check sets the overall state.** One blocking check is enough to produce NO-GO regardless of what else is green.
 - **An unrecognized status is not a pass.** If the SD or DLS status is a value the tool does not recognize, it reads `UNKNOWN` (so, CHECK). It does not fall through to GO.
+- **A value with the wrong type is not a reading.** A number is a finite number and a status is a non-empty string; a string where a number belongs, a boolean, `NaN`, an empty version string, all read `UNKNOWN`. JavaScript would otherwise coerce `"abc"` to `NaN` and compare it false against every threshold, which is a pass by accident.
 
 The aggregation has no averaging and no weighting:
 
@@ -106,8 +108,9 @@ The risk of three implementations is drift. That is managed by treating the eval
 
 - Identical thresholds and config schema across all three.
 - Identical demo fixtures, so the same scenario produces the same state everywhere.
-- A parity harness (`parity_check.js`) that loads the web and iOS evaluators out of the shipped files, side by side, and asserts they agree on every canonical scenario, on every individual check, and on the unknown-value and no-link cases. It runs in CI.
-- A Python test suite that cross-checks the same scenarios and the same states.
+- A parity harness (`parity_check.js`) that loads the web and iOS evaluators out of the shipped files, runs the Python evaluator in a child process on the mock camera's payloads, and asserts that all three agree on every canonical scenario, on every individual check, and on the unknown-value, wrong-type and no-link cases. It runs in CI.
+- One sanitizer per client for the settings themselves, written to the same rule, so a config value one tool rejects cannot quietly disable a threshold in another.
+- A Python test suite that holds the Python client to the same scenarios and states, and holds the hosted page's headers to the local server's.
 
 ---
 
@@ -152,13 +155,15 @@ Eight automated checks, read from the camera and evaluated against configurable 
 | SD storage | 2 GB free | Card present, writable, headroom |
 | GPS fix | 6 satellites | Usable fix for geotagging |
 | Position accuracy | 5 m | Reported accuracy (1 sigma) |
-| Light sensor (DLS) | Present and Ok | Irradiance sensor state |
+| Light sensor (DLS) | Optional; Ok if present | Irradiance sensor state (required only when set) |
 | Supply voltage | 4.2 V | Bus voltage |
 | Time source | Valid UTC | Clock source and validity |
-| Camera rig | Any (configurable) | Cameras online, DLS present |
+| Camera rig | Any (configurable), at least one listed | Cameras online, DLS present |
 | Firmware | Any (configurable) | Version, matched across the rig |
 
 Defaults are sensible starting points, not vendor specification. The minimum supply voltage in particular is a placeholder that should be set against a specific power setup before it is trusted.
+
+Each check reads its own field and nothing else: position accuracy and clock validity have rows of their own, so one cause flags one row, and the reason line names each problem once.
 
 Beyond the automated reads, both interfaces carry a manual **pre-flight prep checklist** for the things a camera cannot report about itself: reflectance panel captured, lenses and DLS clean, mount secure, capture interval set, GPS lock.
 
@@ -169,10 +174,12 @@ Beyond the automated reads, both interfaces carry a manual **pre-flight prep che
 Real cameras return partial and malformed responses, not just clean JSON or nothing. The parsing is built for that, and the behavior is regression-tested by feeding each implementation deliberately broken payloads:
 
 - Wrong types where an object is expected, nulls, lists, junk strings.
+- Wrong types where a number or a status is expected: a string satellite count, a boolean, `NaN`, an empty version, junk entries in the device list.
 - Missing fields, partial payloads, unrecognized status values.
 - Failures of individual secondary endpoints.
+- Listings from the card that are not listings, and names in them that are not single path segments.
 
-The invariants under test are: **never crash**, and **never produce a false GO**. Writing these tests found a real crash, where a non-object `network` payload hit a `.get()` call, which is the argument for the tests existing.
+The invariants under test are: **never crash**, and **never produce a false GO**. Writing these tests found a real crash, where a non-object `network` payload hit a `.get()` call, which is the argument for the tests existing. The second pass found another, a string satellite count raising `TypeError` in Python while the same payload read GO in the browser.
 
 ---
 
@@ -181,9 +188,10 @@ The invariants under test are: **never crash**, and **never produce a false GO**
 The honest summary is that the camera itself is unauthenticated and unencrypted on an open network. That is a property of the hardware and is not fixable in client code. The tool is built to not make it worse.
 
 - **No injection surface from camera data.** Every camera-derived string reaches the interface as text, not markup, on both the web and iOS clients.
-- **No inline script.** The client lives in `web/app.js`, so the Content Security Policy can say `script-src 'self'` rather than `'unsafe-inline'`. Nothing injects script today, but the policy no longer rests on that staying true.
-- **Strict headers on the hosted page.** A Content Security Policy plus `nosniff`, `DENY` framing, `no-referrer`, a restrictive permissions policy, and HSTS.
-- **The local proxy is read-only.** GET only, with a fixed target host and an endpoint allowlist. Every allowlisted route returns JSON, because the forwarder decodes JSON; a binary route would fail permanently, so none is listed. It cannot be turned into an open proxy or an SSRF vector.
+- **No inline script.** The client lives in `web/app.js`, and the Content Security Policy in `web/_headers` says `script-src 'self'`, not `'unsafe-inline'`. Nothing injects script today, but the policy no longer rests on that staying true. The test suite reads `web/_headers` and asserts the directive, because for a while the file said otherwise while these notes said this, and the hosted page could not run its own script.
+- **Strict headers on the hosted page, and the same on the local one.** A Content Security Policy plus `nosniff`, `DENY` framing, `no-referrer`, a restrictive permissions policy, and HSTS on the hosted page. `rededge.py serve` sends the same page headers minus HSTS and the opener policy, from a constant the suite compares to `web/_headers`.
+- **The local proxy is read-only.** GET and HEAD only, with a fixed target host and an endpoint allowlist. Every route is percent-decoded and vetted segment by segment (no dot or empty segments, a plain-name character set, a sub-path only under `files/`), so `status/../capture` is refused rather than left for the camera's server to interpret. Every allowlisted route returns JSON, because the forwarder decodes JSON; a binary route would fail permanently, so none is listed. It cannot be turned into an open proxy or an SSRF vector.
+- **A listing from the card is input, not truth.** `offload` accepts a file or folder name only as a single path segment and checks that the resolved path sits under the destination, so a spoofed device cannot steer a download outside the folder it was given.
 - **A query string is untrusted input.** The web page takes its configuration from URL parameters, which means a shared link carries it. A link is written by whoever sends it, not by the pilot, so a camera URL arriving that way is restricted to local addresses (RFC1918, loopback, link-local, `.local`, or a same-origin path). The camera is a local device by definition, so a link pointing anywhere else is not a configuration, it is an attempt to show a fabricated readout for a camera nobody is holding. Settings typed by the pilot is the trusted path and is not restricted.
 - **A malformed threshold falls back, it does not vanish.** Numeric parameters are validated rather than passed to `parseFloat` and trusted. An unparseable value yields `NaN`, and `NaN` compares false against every threshold, so an unguarded `free < cfg.sd` silently skips the low-space branch and a nearly full card reads GO. Anything unparseable or negative reverts to the built-in default, and the poll interval is clamped so a crafted link cannot spin the poll loop at zero delay.
 - **No secrets to leak.** There is no auth, no API key, and no cloud service in the runtime path.
@@ -196,8 +204,9 @@ No hardware is required to test any of it.
 
 - **A mock camera** (`rededge_mock.py`), serving the same endpoints, with a scenario per readiness state (nominal, low storage, weak fix, warming up, no card, DLS error, dead link, and more).
 - **A stdlib unittest suite** (`test_rededge.py`), covering the shared readiness logic, robustness against malformed payloads, config precedence, and the offload walk.
-- **A cross-client parity harness** (`parity_check.js`), asserting the web and iOS evaluators agree check by check, not merely on the final verdict. Verdict-only comparison is not enough: the Python client once agreed on every scenario the tests covered while still reading GO on a payload where the other two read CHECK.
-- **CI on every push and pull request**, which compiles the Python, runs the suite, syntax-checks both JavaScript clients, and runs the parity harness. Two of the three clients are JavaScript, so a Python-only pipeline could not see them.
+- **A cross-client parity harness** (`parity_check.js`), asserting the web, iOS and Python evaluators agree check by check, not merely on the final verdict. Verdict-only comparison is not enough: the Python client once agreed on every scenario the tests covered while still reading GO on a payload where the other two read CHECK. Python is compared on snapshots built from the mock camera's own payloads, so the fixture the Python tests use and the fixtures the scripts carry are held to each other too.
+- **A web configuration guard** (`web_config_check.js`), holding the boundary that URL parameters cross.
+- **CI on every push and pull request**, which compiles the Python, runs the suite, syntax-checks both JavaScript clients, and runs the parity harness and the configuration guard. Two of the three clients are JavaScript, so a Python-only pipeline could not see them.
 
 The mock earns its place by making failure states reachable. A full SD card, a DLS error, a malformed payload, and a dead link are trivial to produce in the mock and nearly impossible to produce on demand with real hardware. The failure paths matter most here, and real hardware is worst at demonstrating them. It is also what keeps the test suite from carrying a five-figure precondition, which in practice is what stops a test suite from being run at all.
 
@@ -205,6 +214,7 @@ The test names are the invariants:
 
 ```
 test_malformed_does_not_crash_and_never_false_go
+test_wrong_typed_readings_never_crash_and_never_pass
 test_unrecognized_status_is_not_go
 test_missing_version_degrades_to_check_not_nogo
 test_no_link_is_nogo
@@ -212,7 +222,13 @@ test_snapshot_tolerates_secondary_endpoint_failure
 test_reports_every_contracted_check_in_order
 test_missing_position_accuracy_is_not_a_pass
 test_missing_time_fields_are_not_a_pass
+test_one_cause_flags_one_row
 test_proxy_is_read_only
+test_proxy_refuses_dot_segments_and_stray_subpaths
+test_names_that_escape_the_destination_are_refused
+test_junk_listing_is_an_error_not_an_empty_card
+test_hosted_page_forbids_inline_script_and_allows_its_own
+test_local_page_carries_the_hosted_headers
 test_make_handler_exists
 ```
 
@@ -224,7 +240,7 @@ The deliberate gap: none of this proves correctness against real hardware. The m
 
 ## Deployment
 
-The web interface deploys as a Cloudflare Worker serving static assets. There is no server-side application: the page is self-contained, with no build step and no runtime dependencies.
+The web interface deploys as a Cloudflare Worker serving static assets. There is no server-side application: the page is self-contained, with no build step and no runtime dependencies. `web/_redirects` serves the page at the site root as a rewrite, and `web/_headers` carries the security headers.
 
 The hosted page is **demo only, by design**. It cannot read a real camera, for the CORS and mixed-content reasons above, and it says so rather than pretending otherwise. When a live read fails on the hosted page, the interface explains that the browser is the limitation and points to the iPhone tool or a local run, instead of offering advice that cannot work.
 

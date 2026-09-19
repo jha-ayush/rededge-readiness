@@ -19,20 +19,25 @@ Subcommands:
   status    Print the raw /status, /version and /networkstatus payloads.
   offload   Download every capture off the SD card, preserving folders.
   capture   Trigger a single capture (action; not exposed via the proxy).
+  verify    Post-flight: walk the card and confirm captures landed.
   serve     Serve the HTML readiness page locally and proxy read-only camera
             routes with CORS headers, so the browser tool works live on site.
+  init-config
+            Write a template rededge.json.
 
 Examples:
   python3 rededge.py check
   python3 rededge.py watch --interval 3
   python3 rededge.py offload ./flight_2026_06_01 --only tif
+  python3 rededge.py verify
   python3 rededge.py capture --bands 31 --block
-  python3 rededge.py serve --page rededge-readiness.html --port 8000
+  python3 rededge.py serve --port 8000      # serves web/rededge-readiness.html
 """
 
 import argparse
 import json
 import os
+import re
 import socket
 import sys
 import time
@@ -53,6 +58,32 @@ CONFIG_DEFAULTS = {
 }
 
 
+# ----------------------------------------------------------------------------
+# Values: what counts as a reading
+# ----------------------------------------------------------------------------
+def _num(v):
+    """A finite number that was actually reported, or None.
+
+    Anything else is treated as not reported: a string (even a numeric one,
+    because text is not a measurement), a bool (a subclass of int in Python,
+    so True would otherwise count as one satellite), NaN and infinities. The
+    comparison operators would either raise on these or compare them in ways
+    that skip the branch meant to catch a problem, and a skipped branch is a
+    threshold that no longer exists."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    if v != v or v in (float("inf"), float("-inf")):
+        return None
+    return v
+
+
+def _text(v):
+    """A non-empty string that was reported, or None. A status that arrives as
+    any other type, or as an empty string, is not a recognizable status and
+    must not be compared as one."""
+    return v if isinstance(v, str) and v else None
+
+
 def config_path(explicit):
     """Resolve which config file to use: explicit flag, then REDEDGE_CONFIG,
     then rededge.json in the working directory if present, else None."""
@@ -70,18 +101,70 @@ def load_config(explicit):
         return {}
     try:
         with open(path) as f:
-            return json.load(f)
+            loaded = json.load(f)
     except (OSError, ValueError) as e:
         sys.stderr.write("warning: could not read config %s: %s\n" % (path, e))
         return {}
+    if not isinstance(loaded, dict):
+        sys.stderr.write("warning: config %s is not a JSON object; ignoring it\n"
+                         % path)
+        return {}
+    return loaded
+
+
+# The numeric settings, and the two that are counts. The same rule lives in
+# sanitizeCfg in web/app.js and sanitizeSettings in the iOS script: the three
+# clients must refuse the same values, or a config that one tool rejects would
+# quietly disable a threshold in another.
+_NUMERIC_KEYS = ("timeout", "sd", "sats", "pacc", "volts", "cams")
+_INTEGER_KEYS = ("sats", "cams")
+
+
+def sanitize_settings(cfg, warn=None):
+    """Return cfg with every threshold usable, falling back to the built-in
+    default for anything that is not.
+
+    A threshold that cannot be compared is not a loose threshold, it is the
+    absence of one: in Python a string beside a number raises mid-readout, and
+    a negative floor can never fire. Both are replaced by the default, and the
+    replacement is said out loud through `warn` (stderr by default) so a typo
+    in rededge.json is noticed rather than silently forgiven."""
+    warn = warn or (lambda m: sys.stderr.write("warning: %s\n" % m))
+    out = dict(cfg)
+    for key in _NUMERIC_KEYS:
+        raw = out.get(key)
+        val = _num(raw)
+        if val is None and isinstance(raw, str):
+            try:
+                val = _num(float(raw.strip()))
+            except ValueError:
+                val = None
+        if val is None or val < 0 or (key == "timeout" and val <= 0):
+            default = CONFIG_DEFAULTS[key]
+            warn("config value %s=%r is not usable; using the default %g"
+                 % (key, raw, default))
+            val = default
+        if key in _INTEGER_KEYS:
+            val = int(val)
+        out[key] = val
+    fw = out.get("fw")
+    out["fw"] = fw.strip() if isinstance(fw, str) else ""
+    dls = out.get("dls")
+    if not isinstance(dls, bool):
+        dls = str(dls).strip().lower() in ("1", "true", "yes")
+    out["dls"] = dls
+    url = out.get("url")
+    out["url"] = url.strip() if isinstance(url, str) and url.strip() else DEFAULT_URL
+    return out
 
 
 def resolve_settings(args):
     """Precedence: built-in defaults < config file < command-line flags.
-    Returns the cfg dict the evaluator expects (internal key 'url')."""
+    Returns the cfg dict the evaluator expects (internal key 'url'), with every
+    threshold sanitized on the way through."""
     f = load_config(getattr(args, "config", None))
     pick = lambda key, val: val if val is not None else f.get(key, CONFIG_DEFAULTS[key])
-    return {
+    return sanitize_settings({
         "url": pick("cameraUrl", args.url),
         "timeout": pick("timeout", args.timeout),
         "sd": pick("sd", args.min_sd),
@@ -91,7 +174,7 @@ def resolve_settings(args):
         "cams": pick("cams", args.cameras),
         "fw": pick("fw", args.firmware),
         "dls": True if args.require_dls else f.get("dls", CONFIG_DEFAULTS["dls"]),
-    }
+    })
 
 # Routes the local proxy is allowed to forward. Read-only by design: the
 # browser tool can never trigger a capture, delete a file, or reformat a card.
@@ -100,6 +183,62 @@ def resolve_settings(args):
 # listed rather than listed and permanently broken.
 PROXY_ALLOW = ("status", "version", "networkstatus", "camera_info",
                "timesources", "files")
+
+# The only allowlisted route that takes a sub-path (files/0000SET/000). The
+# others are single names, and a sub-path under them is refused rather than
+# forwarded, because the camera's own server decides what "status/../capture"
+# means and the proxy must not let it decide that.
+PROXY_SUBPATH = ("files",)
+_SEGMENT_OK = re.compile(r"[A-Za-z0-9._-]+")
+
+# The page the local server ships by default: the web client beside this
+# script. Resolved against the script's own location so "python3 rededge.py
+# serve" works from any working directory.
+DEFAULT_PAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "web", "rededge-readiness.html")
+
+# Response headers on the locally served page. They mirror the hosted page's
+# web/_headers, minus HSTS (meaningless on plain HTTP) and the cross-origin
+# opener policy (a LAN origin has no cross-origin windows to isolate), so a
+# pilot running the tool locally gets the same page contract as the demo, and
+# test_rededge.py holds the two files to each other.
+PAGE_HEADERS = {
+    "Content-Security-Policy": (
+        "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; "
+        "img-src 'self' data:; connect-src 'self'; base-uri 'none'; "
+        "form-action 'none'; frame-ancestors 'none'; object-src 'none'"),
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), usb=(), payment=()",
+}
+
+
+def proxy_route(path):
+    """The camera route a /cam/ request may be forwarded to, or None.
+
+    The request path is percent-decoded first, because the camera would decode
+    it anyway and "%2e%2e" is ".." to the camera even when it is not to a naive
+    string check. Every segment must then be a plain name: no dot segments, no
+    empty segments, nothing outside [A-Za-z0-9._-]. The head must be an
+    allowlisted route, and only the routes in PROXY_SUBPATH may carry more than
+    one segment. A trailing slash (the files/ root listing) is the one shape
+    that is allowed to end in an empty segment."""
+    if not path.startswith("/cam/"):
+        return None
+    route = urllib.parse.unquote(path[len("/cam/"):])
+    trailing = route.endswith("/")
+    parts = route.rstrip("/").split("/") if route.rstrip("/") else []
+    if not parts or parts[0] not in PROXY_ALLOW:
+        return None
+    for seg in parts:
+        if seg in (".", "..") or not _SEGMENT_OK.fullmatch(seg):
+            return None
+    if len(parts) > 1 and parts[0] not in PROXY_SUBPATH:
+        return None
+    if trailing and parts[0] not in PROXY_SUBPATH:
+        return None
+    return "/".join(parts) + ("/" if trailing else "")
 
 
 # ----------------------------------------------------------------------------
@@ -191,7 +330,13 @@ def _worst(states):
 
 
 def evaluate(snapshot, cfg):
-    """snapshot: {'ok':bool, 'status':..., 'version':..., 'network':...}."""
+    """snapshot: {'ok':bool, 'status':..., 'version':..., 'network':...}.
+
+    Every check reads its own field and nothing else. A field that is missing,
+    or present with a type that is not a reading, is UNKNOWN for that check,
+    which the overall verdict folds into CHECK. The web and iOS evaluators
+    implement this same table row for row; parity_check.js holds all three to
+    it, check by check."""
     if not snapshot.get("ok"):
         return {
             "overall": "NO-GO",
@@ -210,7 +355,7 @@ def evaluate(snapshot, cfg):
     checks = []
 
     # SD storage
-    st, free = s.get("sd_status"), s.get("sd_gb_free")
+    st, free = _text(s.get("sd_status")), _num(s.get("sd_gb_free"))
     state, note = "GO", "card present and writable"
     if st == "NotPresent":
         state, note = "NO-GO", "no SD card inserted"
@@ -218,17 +363,19 @@ def evaluate(snapshot, cfg):
         state, note = "NO-GO", "card full, offload before flight"
     elif s.get("sd_warn"):
         state, note = "CHECK", "low-space warning or unrecommended filesystem"
-    elif isinstance(free, (int, float)) and free < cfg["sd"]:
+    elif free is not None and free < cfg["sd"]:
         state, note = "CHECK", "below %g GB headroom" % cfg["sd"]
     elif st != "Ok":
         state, note = "UNKNOWN", ("card status not reported" if st is None
                                   else "unrecognized card status")
-    checks.append(("SD storage",
-                   ("%.1f GB" % free) if isinstance(free, (int, float)) else "--",
+    elif free is None:
+        state, note = "UNKNOWN", "free space not reported"
+    checks.append(("SD storage", ("%.1f GB" % free) if free is not None else "--",
                    state, note))
 
-    # GPS fix
-    sats, pacc = s.get("gps_used_sats"), s.get("p_acc")
+    # GPS fix: satellites and interference only. Position accuracy and clock
+    # validity each have a row of their own below, so one cause flags one row.
+    sats = _num(s.get("gps_used_sats"))
     state, note = "GO", "usable fix for geotagging"
     if sats is None:
         state, note = "UNKNOWN", "GPS not reported"
@@ -236,34 +383,31 @@ def evaluate(snapshot, cfg):
         state, note = "CHECK", "receiver reports interference"
     elif sats < cfg["sats"]:
         state, note = "CHECK", "only %d sats, want %d+" % (sats, cfg["sats"])
-    elif isinstance(pacc, (int, float)) and pacc > cfg["pacc"]:
-        state, note = "CHECK", "position error %.1f m" % pacc
-    elif s.get("utc_time_valid") is False:
-        state, note = "CHECK", "time not yet valid"
     checks.append(("GPS fix", ("%d sats" % sats) if sats is not None else "--",
                    state, note))
 
     # Position accuracy. Reported separately from the fix itself because the two
     # fail independently: a receiver can hold plenty of satellites and still
-    # report an error ellipse too wide for the survey. Splitting them also keeps
-    # this client's rows identical to the phone and the web page.
+    # report an error ellipse too wide for the survey.
+    pacc = _num(s.get("p_acc"))
     state, note = "GO", "threshold %g m" % cfg["pacc"]
     if pacc is None:
         state, note = "UNKNOWN", "not reported"
-    elif isinstance(pacc, (int, float)) and pacc > cfg["pacc"]:
+    elif pacc > cfg["pacc"]:
         state = "CHECK"
     checks.append(("Position accuracy",
-                   ("%.1f m" % pacc) if isinstance(pacc, (int, float)) else "--",
+                   ("%.1f m" % pacc) if pacc is not None else "--",
                    state, note))
 
     # Light sensor (DLS)
-    dls = s.get("dls_status")
+    dls = _text(s.get("dls_status"))
     state, note = "GO", "irradiance sensor active"
     if dls == "Error":
         state, note = "NO-GO", "DLS error, reflectance data unreliable"
     elif dls == "NotPresent":
         state = "CHECK" if cfg["dls"] else "GO"
-        note = "no DLS, reflectance limited" if cfg["dls"] else "no DLS (not required)"
+        note = ("no DLS, reflectance calibration limited" if cfg["dls"]
+                else "no DLS (not required)")
     elif dls in ("Programming", "Initializing"):
         state, note = "CHECK", "DLS warming up, wait"
     elif dls != "Ok":
@@ -272,20 +416,19 @@ def evaluate(snapshot, cfg):
     checks.append(("Light sensor", dls or "--", state, note))
 
     # Supply voltage
-    v = s.get("bus_volts")
+    v = _num(s.get("bus_volts"))
     state, note = "GO", "supply within configured floor"
     if v is None:
         state, note = "UNKNOWN", "voltage not reported"
     elif v < cfg["volts"]:
         state, note = "CHECK", "below %g V floor, verify pack" % cfg["volts"]
-    checks.append(("Supply voltage",
-                   ("%.2f V" % v) if isinstance(v, (int, float)) else "--",
+    checks.append(("Supply voltage", ("%.2f V" % v) if v is not None else "--",
                    state, note))
 
     # Time source. Geotags and reflectance both depend on a valid clock, so a
     # camera that reports neither a source nor a validity flag is unconfirmed
     # rather than fine.
-    ts, valid = s.get("time_source"), s.get("utc_time_valid")
+    ts, valid = _text(s.get("time_source")), s.get("utc_time_valid")
     state, note = "GO", (("%s time source" % ts) if ts else "time valid")
     if valid is False:
         state, note = "CHECK", "UTC time not yet valid"
@@ -294,22 +437,30 @@ def evaluate(snapshot, cfg):
     checks.append(("Time source", ts or ("valid" if valid else "--"),
                    state, note))
 
-    # Camera rig
+    # Camera rig. Only object entries count as devices; anything else in the
+    # list is noise from a payload that is not what the tool expects.
     if not isinstance(net, dict) or not isinstance(net.get("network_map"), list):
         checks.append(("Camera rig", "--", "UNKNOWN", "network status unavailable"))
     else:
-        cams = [x for x in net["network_map"] if x.get("device_type") == "Camera"]
-        dlss = [x for x in net["network_map"]
+        devices = [x for x in net["network_map"] if isinstance(x, dict)]
+        cams = [x for x in devices if x.get("device_type") == "Camera"]
+        dlss = [x for x in devices
                 if str(x.get("device_type", "")).startswith("DLS")]
         state = "GO"
         note = "%d camera%s%s" % (len(cams), "" if len(cams) == 1 else "s",
                                   ", DLS present" if dlss else "")
-        fw_set = {x.get("sw_version") for x in cams if x.get("sw_version")}
+        fw_set = {x.get("sw_version") for x in cams
+                  if isinstance(x.get("sw_version"), str) and x.get("sw_version")}
         card_issue = any(x.get("sd_status") and x.get("sd_status") != "Ok"
                          for x in cams)
         if cfg["cams"] > 0 and len(cams) < cfg["cams"]:
             state = "NO-GO"
             note = "only %d of %d cameras online" % (len(cams), cfg["cams"])
+        elif not cams:
+            # The camera answered /status, so at least one camera exists; a
+            # map that lists none is not a rig of zero, it is a map that could
+            # not be read.
+            state, note = "UNKNOWN", "no cameras listed"
         elif card_issue:
             state, note = "CHECK", "a networked camera has a card issue"
         elif len(fw_set) > 1:
@@ -319,7 +470,7 @@ def evaluate(snapshot, cfg):
         checks.append(("Camera rig", "%d online" % len(cams), state, note))
 
     # Firmware
-    fw = ver.get("sw_version")
+    fw = _text(ver.get("sw_version"))
     state, note = "GO", ("running " + fw) if fw else "version reported"
     if fw is None:
         state, note = "UNKNOWN", "version not reported"
@@ -381,40 +532,84 @@ def render(result, use_color=True):
     lines = []
     lines.append("%s%s%s  %s" % (c[o], o, c["_"], result["reason"]))
     for label, read, state, note in result["checks"]:
-        dot = "%s%s%s" % (c[state], "GO " if state == "GO" else state.ljust(3),
-                          c["_"])
+        # The state column is padded to the widest state (UNKNOWN, 7) so the
+        # label, reading and note columns line up on every row.
+        dot = "%s%-7s%s" % (c[state], state, c["_"])
         lines.append("  %s  %-18s %-12s %s%s%s"
                      % (dot, label, read, c["dim"], note, c["_"]))
     return "\n".join(lines)
 
 
 # ----------------------------------------------------------------------------
-# Offload
+# Card walk: offload and verify
 # ----------------------------------------------------------------------------
+def _card_entry_name(value):
+    """A file or folder name from the card that is safe to join onto a local
+    path, or None.
+
+    The camera is an unauthenticated device on an open WiFi, and the README
+    says to treat that network as untrusted. A listing is therefore input, not
+    truth: a spoofed device could answer with a name like "../../.ssh/config"
+    and, joined naively, offload would write outside the destination folder.
+    A name is one path segment or it is nothing."""
+    if not isinstance(value, str) or not value or value in (".", ".."):
+        return None
+    if "/" in value or "\\" in value or "\x00" in value:
+        return None
+    return value
+
+
+def _card_listing(client, remote):
+    """One /files listing as a (files, directories) pair of clean entries.
+    Raises RedEdgeError if the camera answered with something that is not a
+    listing, so a walk never silently reports an empty card off junk."""
+    listing = client.list_files(remote)
+    if not isinstance(listing, dict):
+        raise RedEdgeError("files/%s: malformed listing" % remote.strip("/"))
+    files = []
+    raw_files = listing.get("files")
+    for f in (raw_files if isinstance(raw_files, list) else []):
+        name = _card_entry_name(f.get("name")) if isinstance(f, dict) else None
+        if name is None:
+            continue
+        size = _num(f.get("size"))
+        files.append((name, size))
+    raw_dirs = listing.get("directories")
+    dirs = [d for d in (raw_dirs if isinstance(raw_dirs, list) else [])
+            if _card_entry_name(d) is not None]
+    return files, dirs
+
+
 def offload(client, dest, only=None):
     """Recursively download every file off the card into dest, preserving the
     SET/sub-folder layout. Skips files already present (resume-friendly)."""
     only = only.lower().lstrip(".") if only else None
     total_bytes = 0
     total_files = 0
+    dest_root = os.path.abspath(dest)
 
     def walk(remote):
         nonlocal total_bytes, total_files
-        listing = client.list_files(remote)
-        for f in listing.get("files", []):
-            name = f.get("name", "")
+        files, dirs = _card_listing(client, remote)
+        for name, size in files:
             if only and not name.lower().endswith("." + only):
                 continue
             rpath = (remote.rstrip("/") + "/" + name).lstrip("/")
-            local = os.path.join(dest, rpath)
-            if os.path.exists(local) and os.path.getsize(local) == f.get("size", -1):
+            local = os.path.join(dest_root, rpath)
+            # Belt and suspenders: the segments are already vetted, and the
+            # final path is still required to sit under the destination.
+            if os.path.commonpath([dest_root, os.path.abspath(local)]) != dest_root:
+                print("  skip  %s  (refused: escapes the destination)" % rpath)
+                continue
+            if (os.path.exists(local) and size is not None
+                    and os.path.getsize(local) == size):
                 print("  skip  %s" % rpath)
                 continue
             n = client.download(rpath, local)
             total_bytes += n
             total_files += 1
             print("  pull  %s  (%.1f MB)" % (rpath, n / 1e6))
-        for d in listing.get("directories", []):
+        for d in dirs:
             walk((remote.rstrip("/") + "/" + d).lstrip("/"))
 
     walk("/")
@@ -432,14 +627,13 @@ def count_captures(client):
 
     def walk(remote):
         nonlocal sets, total_bytes
-        listing = client.list_files(remote)
-        for f in listing.get("files", []):
-            name = f.get("name", "")
-            total_bytes += f.get("size", 0)
+        files, dirs = _card_listing(client, remote)
+        for name, size in files:
+            total_bytes += size or 0
             if name.upper().startswith("IMG_") and "_" in name:
                 prefix = name.rsplit("_", 1)[0]   # IMG_0000_3.tif -> IMG_0000
                 captures.add((remote, prefix))
-        for d in listing.get("directories", []):
+        for d in dirs:
             if remote in ("", "/") and d.upper().endswith("SET"):
                 sets += 1
             walk((remote.rstrip("/") + "/" + d).lstrip("/"))
@@ -461,7 +655,8 @@ def make_handler(page_path, client):
     camera.
 
     The proxy is read-only by construction: only PROXY_ALLOW routes are
-    forwarded, and only GET is implemented, so the browser can never trigger a
+    forwarded, every segment of a forwarded route is vetted by proxy_route, and
+    only GET and HEAD are implemented, so the browser can never trigger a
     capture, delete a file, or reformat a card.
     """
     page_bytes = b""
@@ -480,6 +675,13 @@ def make_handler(page_path, client):
         "favicon.svg": "image/svg+xml",
         "rededge-social.png": "image/png",
     }
+    STATIC_HEADERS = {"X-Content-Type-Options": "nosniff"}
+    # The proxy answers are the one place a cross-origin header belongs: they
+    # exist so a browser can read camera JSON. The page and its assets are
+    # same-origin documents and get no such grant.
+    PROXY_HEADERS = {"Access-Control-Allow-Origin": "*",
+                     "X-Content-Type-Options": "nosniff",
+                     "Cache-Control": "no-store"}
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_):
@@ -489,7 +691,6 @@ def make_handler(page_path, client):
             self.send_response(code)
             self.send_header("Content-Type", ctype)
             self.send_header("Content-Length", str(len(body)))
-            self.send_header("Access-Control-Allow-Origin", "*")
             for k, v in (extra or {}).items():
                 self.send_header(k, v)
             self.end_headers()
@@ -497,12 +698,16 @@ def make_handler(page_path, client):
                 self.wfile.write(body)
 
         def do_GET(self):
-            path = urllib.parse.urlparse(self.path).path
+            # urlsplit, not urlparse: urlparse would peel a ";params" tail off
+            # the last segment before the route is vetted, so "x;y" would be
+            # forwarded as "x". The whole segment is judged, or none of it.
+            path = urllib.parse.urlsplit(self.path).path
             if path in ("/", "/index.html"):
                 if not page_bytes:
                     self._send(404, b"page not found; pass --page", "text/plain")
                 else:
-                    self._send(200, page_bytes, "text/html; charset=utf-8")
+                    self._send(200, page_bytes, "text/html; charset=utf-8",
+                               PAGE_HEADERS)
                 return
             name = path.lstrip("/")
             if name in STATIC_ALLOW and page_dir:
@@ -511,28 +716,32 @@ def make_handler(page_path, client):
                 fp = os.path.join(page_dir, os.path.basename(name))
                 if os.path.exists(fp):
                     with open(fp, "rb") as f:
-                        self._send(200, f.read(), STATIC_ALLOW[name])
+                        self._send(200, f.read(), STATIC_ALLOW[name],
+                                   STATIC_HEADERS)
                 else:
                     self._send(404, b"not found", "text/plain")
                 return
 
             if path.startswith("/cam/"):
-                route = path[len("/cam/"):]
-                head = route.split("/", 1)[0]
-                if head not in PROXY_ALLOW:
+                route = proxy_route(path)
+                if route is None:
                     self._send(403, b'{"error":"route not allowed"}',
-                               "application/json")
+                               "application/json", PROXY_HEADERS)
                     return
                 try:
                     raw = client._get_json(route)
                     body = json.dumps(raw).encode("utf-8")
-                    self._send(200, body, "application/json")
+                    self._send(200, body, "application/json", PROXY_HEADERS)
                 except RedEdgeError as e:
                     self._send(502,
                                json.dumps({"error": str(e)}).encode("utf-8"),
-                               "application/json")
+                               "application/json", PROXY_HEADERS)
                 return
             self._send(404, b"not found", "text/plain")
+
+        # HEAD answers with the same headers and no body; _send already skips
+        # the body for it, so the two verbs cannot drift apart.
+        do_HEAD = do_GET
 
     return Handler
 
@@ -558,6 +767,11 @@ def serve(client, page_path, port):
     httpd = ThreadingHTTPServer(("0.0.0.0", port), handler)
     ip = _lan_ip(client.base)
     print("Serving the readiness page with a CORS proxy to %s" % client.base)
+    if not (page_path and os.path.exists(page_path)):
+        # Say so now, at the terminal, rather than as a 404 in a browser on
+        # the other side of the room.
+        print("  WARNING: page not found at %s; the proxy runs, the page will 404"
+              % page_path)
     print("  This machine : http://localhost:%d/?url=%%2Fcam" % port)
     print("  On the WiFi  : http://%s:%d/?url=%%2Fcam" % (ip, port))
     print("  In the page, Camera base URL is /cam (set by the link above).")
@@ -602,7 +816,9 @@ def build_parser():
     cap.add_argument("--preview", action="store_true")
     sub.add_parser("verify", help="post-flight: confirm captures landed on the card")
     sv = sub.add_parser("serve", help="serve the page + CORS proxy for live use")
-    sv.add_argument("--page", default="rededge-readiness.html")
+    sv.add_argument("--page", default=DEFAULT_PAGE,
+                    help="readiness page to serve (default: the web/ page "
+                         "beside this script)")
     sv.add_argument("--port", type=int, default=8000)
     ic = sub.add_parser("init-config", help="write a template rededge.json")
     ic.add_argument("--path", default="rededge.json")
@@ -653,7 +869,14 @@ def main(argv=None):
         return 0
 
     if args.cmd == "offload":
-        offload(client, args.dest, args.only)
+        try:
+            offload(client, args.dest, args.only)
+        except RedEdgeError as e:
+            # A dead link or a junk listing mid-walk is a message and an exit
+            # code, not a traceback; the files already pulled stay on disk and
+            # the next run resumes past them.
+            print("Could not read the card: %s" % e)
+            return 2
         return 0
 
     if args.cmd == "verify":
@@ -664,10 +887,12 @@ def main(argv=None):
             return 2
         st = {}
         try:
-            st = client.status()
+            raw = client.status()
+            if isinstance(raw, dict):
+                st = raw
         except RedEdgeError:
-            pass
-        free, total = st.get("sd_gb_free"), st.get("sd_gb_total")
+            pass   # the SD line is optional; the count above is the verdict
+        free, total = _num(st.get("sd_gb_free")), _num(st.get("sd_gb_total"))
         c = _color(use_color)
         ok = info["captures"] > 0
         head = "%s%s%s" % (c["GO"] if ok else c["CHECK"],
@@ -677,7 +902,7 @@ def main(argv=None):
               % (head, info["captures"], "" if info["captures"] == 1 else "s",
                  info["sets"], "" if info["sets"] == 1 else "s",
                  info["bytes"] / 1e6))
-        if isinstance(free, (int, float)) and isinstance(total, (int, float)):
+        if free is not None and total is not None:
             print("  SD: %.1f of %.1f GB free" % (free, total))
         if not ok:
             print("  Card has no images. Do not pack up before re-checking.")

@@ -1,3 +1,4 @@
+<!-- LICENSE.md -->
 # License
 
 **Proprietary. Source-available. All rights reserved.**
@@ -64,4 +65,4 @@ AgEagle. No trademark rights are claimed or granted.
 
 ## 8. Contact
 
-Licensing enquiries: SudoKodes LLC, admin@sudokodes.com
+Licensing inquiries: SudoKodes LLC, admin@sudokodes.com

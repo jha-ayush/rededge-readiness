@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- web/rededge-readiness.html -->
 <html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
@@ -19,8 +20,7 @@
 <meta name="twitter:title" content="RedEdge Readiness">
 <meta name="twitter:description" content="Pre-flight sensor readiness for MicaSense RedEdge and Altum. One glance: is the sensor ready to capture good data, right now.">
 <meta name="twitter:image" content="https://rededge-readiness.sudokodes.workers.dev/rededge-social.png">
-<link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="%230a0c0e"/><circle cx="32" cy="32" r="20" fill="none" stroke="%232fe39a" stroke-width="4"/><circle cx="32" cy="32" r="11" fill="none" stroke="%232fe39a" stroke-width="2.5" opacity="0.55"/><circle cx="32" cy="32" r="4.5" fill="%232fe39a"/></svg>'>
-<link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTQiIGZpbGw9IiMwYTBjMGUiLz48Y2lyY2xlIGN4PSIzMiIgY3k9IjMyIiByPSIyMCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMmZlMzlhIiBzdHJva2Utd2lkdGg9IjQiLz48Y2lyY2xlIGN4PSIzMiIgY3k9IjMyIiByPSIxMSIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMmZlMzlhIiBzdHJva2Utd2lkdGg9IjIuNSIgb3BhY2l0eT0iMC41NSIvPjxjaXJjbGUgY3g9IjMyIiBjeT0iMzIiIHI9IjQuNSIgZmlsbD0iIzJmZTM5YSIvPjwvc3ZnPg==">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <style>
   :root{
     /* System faces only, no webfont fetch. A pilot reads this on camera WiFi
@@ -113,9 +113,8 @@
   .banner.stale{border-color:var(--check)}
   .banner.stale .state-word{opacity:.4}
   .banner.stale .updated{color:var(--check)}
-  .stale-badge{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.14em;
-    color:var(--check);border:1px dashed var(--check);border-radius:6px;padding:3px 8px;white-space:nowrap}
-  .demo-badge{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.14em;
+  /* DEMO and STALE share one badge: both mean "not a live, current reading". */
+  .badge{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.14em;
     color:var(--check);border:1px dashed var(--check);border-radius:6px;padding:3px 8px;white-space:nowrap}
 
   /* Status banner */
@@ -225,7 +224,11 @@
   .hint[hidden]{display:none}
   .hint .hi{color:var(--check);font-size:15px;line-height:1.2;flex:none}
   .hint b{color:var(--text);font-weight:600}
-  .hint a{color:var(--text);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+  /* In-text actions ("Settings") are real buttons, so they take focus and the
+     keyboard, styled as links so the sentence still reads as one. */
+  .linkbtn{background:none;border:0;padding:0;margin:0;font:inherit;color:var(--text);cursor:pointer;
+    text-decoration:underline;text-underline-offset:2px}
+  .linkbtn:focus-visible{outline:2px solid var(--go);outline-offset:2px;border-radius:3px}
 
   /* Help panel */
   .help-body{padding:14px;font-size:13px;line-height:1.55;color:var(--muted)}
@@ -276,7 +279,8 @@
   }
   /* Tablets and up */
   @media (min-width:720px){
-    .wrap{max-width:760px}    .checks{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .wrap{max-width:760px}
+    .checks{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .banner{padding:28px 26px}
     .state-word{font-size:clamp(52px,8vw,74px)}
   }
@@ -355,21 +359,26 @@
     </select>
   </div>
 
-  <div class="banner" id="banner" data-s="UNKNOWN" role="status" aria-live="polite">
-    <div class="banner-row">
-      <div class="state-word" id="stateWord">...</div>
-      <span class="demo-badge" id="demoBadge" hidden>DEMO</span>
-      <span class="stale-badge" id="staleBadge" hidden>STALE</span>
-      <div class="pulse"></div>
+  <div class="banner" id="banner" data-s="UNKNOWN">
+    <!-- The live region is the verdict and its reason only. The status line
+         below it re-renders every second ("next in 3s"), and a live region
+         around it would have a screen reader announce a countdown. -->
+    <div role="status" aria-live="polite" aria-atomic="true">
+      <div class="banner-row">
+        <div class="state-word" id="stateWord">...</div>
+        <span class="badge" id="demoBadge" hidden>DEMO</span>
+        <span class="badge" id="staleBadge" hidden>STALE</span>
+        <div class="pulse" aria-hidden="true"></div>
+      </div>
+      <div class="reason"><span id="reasonMain">Connect to the camera WiFi and choose a source.</span><div class="sub" id="reasonSub"></div></div>
     </div>
-    <div class="reason"><span id="reasonMain">Connect to the camera WiFi and choose a source.</span><div class="sub" id="reasonSub"></div></div>
     <div class="updated"><span id="updatedText">awaiting first read</span></div>
   </div>
 
   <div class="hint" id="hint" hidden>
-    <span class="hi">&#9888;</span>
+    <span class="hi" aria-hidden="true">&#9888;</span>
     <div>
-      <div id="hintLocal"><b>No camera found.</b> Join the camera's WiFi network, then refresh. Wrong address? Set it under <a id="hintSettings">Settings</a>. Just exploring? Pick a <b>Demo</b> from the Source menu to preview each state.</div>
+      <div id="hintLocal"><b>No camera found.</b> Join the camera's WiFi network, then refresh. Wrong address? Set it under <button type="button" class="linkbtn" id="hintSettings">Settings</button>. Just exploring? Pick a <b>Demo</b> from the Source menu to preview each state.</div>
       <div id="hintHosted" hidden><b>This hosted page can't reach a local camera.</b> A browser blocks a secure page from loading the camera's local HTTP address, so live reads work only in the iPhone app or when you run the tool locally. Just exploring? Pick a <b>Demo</b> from the Source menu to preview each state.</div>
     </div>
   </div>
@@ -401,7 +410,7 @@
       <div class="help-row"><span class="hk">Time source</span><span class="hv">Valid clock for timestamps.</span></div>
       <div class="help-row"><span class="hk">Camera rig</span><span class="hv">Expected cameras online, firmware consistent.</span></div>
       <div class="help-row"><span class="hk">Firmware</span><span class="hv">Matches the version you expect, if set.</span></div>
-      <p style="margin-top:8px">Thresholds are yours to set. Open <a id="helpToSettings" style="color:var(--text);cursor:pointer;text-decoration:underline">Settings</a> to adjust the camera address and every limit.</p>
+      <p style="margin-top:8px">Thresholds are yours to set. Open <button type="button" class="linkbtn" id="helpToSettings">Settings</button> to adjust the camera address and every limit.</p>
 
       <h4>Source menu</h4>
       <p><b>Live camera</b> reads the real device, so you must be joined to its WiFi. The <b>Demo</b> options replay each state for preview and training without any hardware.</p>
@@ -416,15 +425,15 @@
   <div class="panel-box" id="prep" hidden>
     <div class="panel-head">Pre-flight prep <span class="prep-count" id="prepCount"></span></div>
     <p class="prep-intro">Manual steps the camera cannot report for itself. Tap each once done. Resets each session, so you re-verify every flight.</p>
-    <div class="prep-list" id="prepList">
-      <div class="prep-item" role="button" tabindex="0"><span class="cbox"></span><span class="ctext">Reflectance calibration panel captured, before and after the flight</span></div>
-      <div class="prep-item" role="button" tabindex="0"><span class="cbox"></span><span class="ctext">All lenses clean and unobstructed across every band</span></div>
-      <div class="prep-item" role="button" tabindex="0"><span class="cbox"></span><span class="ctext">DLS irradiance sensor clean, level, and with a clear view of the sky</span></div>
-      <div class="prep-item" role="button" tabindex="0"><span class="cbox"></span><span class="ctext">SD card formatted for the mission and firmly seated</span></div>
-      <div class="prep-item" role="button" tabindex="0"><span class="cbox"></span><span class="ctext">Firmware matched across all bands and cameras in the rig</span></div>
-      <div class="prep-item" role="button" tabindex="0"><span class="cbox"></span><span class="ctext">Camera mount secure, vibration isolation intact</span></div>
-      <div class="prep-item" role="button" tabindex="0"><span class="cbox"></span><span class="ctext">Capture interval and overlap set for the planned mission</span></div>
-      <div class="prep-item" role="button" tabindex="0"><span class="cbox"></span><span class="ctext">GPS lock acquired before launch</span></div>
+    <div class="prep-list" id="prepList" role="group" aria-label="Pre-flight prep checklist">
+      <div class="prep-item" role="checkbox" aria-checked="false" tabindex="0"><span class="cbox" aria-hidden="true"></span><span class="ctext">Reflectance calibration panel captured, before and after the flight</span></div>
+      <div class="prep-item" role="checkbox" aria-checked="false" tabindex="0"><span class="cbox" aria-hidden="true"></span><span class="ctext">All lenses clean and unobstructed across every band</span></div>
+      <div class="prep-item" role="checkbox" aria-checked="false" tabindex="0"><span class="cbox" aria-hidden="true"></span><span class="ctext">DLS irradiance sensor clean, level, and with a clear view of the sky</span></div>
+      <div class="prep-item" role="checkbox" aria-checked="false" tabindex="0"><span class="cbox" aria-hidden="true"></span><span class="ctext">SD card formatted for the mission and firmly seated</span></div>
+      <div class="prep-item" role="checkbox" aria-checked="false" tabindex="0"><span class="cbox" aria-hidden="true"></span><span class="ctext">Firmware matched across all bands and cameras in the rig</span></div>
+      <div class="prep-item" role="checkbox" aria-checked="false" tabindex="0"><span class="cbox" aria-hidden="true"></span><span class="ctext">Camera mount secure, vibration isolation intact</span></div>
+      <div class="prep-item" role="checkbox" aria-checked="false" tabindex="0"><span class="cbox" aria-hidden="true"></span><span class="ctext">Capture interval and overlap set for the planned mission</span></div>
+      <div class="prep-item" role="checkbox" aria-checked="false" tabindex="0"><span class="cbox" aria-hidden="true"></span><span class="ctext">GPS lock acquired before launch</span></div>
     </div>
     <div class="prep-airspace">
       <b>Airspace, LAANC, and TFRs are not checked here.</b> This tool covers sensor readiness only. For flight legality, check <a class="foot-link" href="https://uas-skycheck.app" target="_blank" rel="noopener">UAS SkyCheck &rarr;</a>
@@ -438,35 +447,35 @@
     <div class="panel-head">Rig expectations</div>
     <div class="grid">
       <div class="field full">
-        <label>Camera base URL</label>
+        <label for="cfgUrl">Camera base URL</label>
         <input id="cfgUrl" type="text" inputmode="url" spellcheck="false">
       </div>
       <div class="field">
-        <label>Min SD free (GB)</label>
+        <label for="cfgSd">Min SD free (GB)</label>
         <input id="cfgSd" type="number" step="0.5" min="0">
       </div>
       <div class="field">
-        <label>Min GPS sats</label>
+        <label for="cfgSats">Min GPS sats</label>
         <input id="cfgSats" type="number" step="1" min="0">
       </div>
       <div class="field">
-        <label>Max pos. error (m)</label>
+        <label for="cfgPacc">Max pos. error (m)</label>
         <input id="cfgPacc" type="number" step="0.5" min="0">
       </div>
       <div class="field">
-        <label>Min supply (V)</label>
+        <label for="cfgVolts">Min supply (V)</label>
         <input id="cfgVolts" type="number" step="0.1" min="0">
       </div>
       <div class="field">
-        <label>Expected cameras (0 = any)</label>
+        <label for="cfgCams">Expected cameras (0 = any)</label>
         <input id="cfgCams" type="number" step="1" min="0">
       </div>
       <div class="field">
-        <label>Poll interval (s)</label>
+        <label for="cfgPoll">Poll interval (s)</label>
         <input id="cfgPoll" type="number" step="1" min="1">
       </div>
       <div class="field full">
-        <label>Expected firmware (blank = any)</label>
+        <label for="cfgFw">Expected firmware (blank = any)</label>
         <input id="cfgFw" type="text" spellcheck="false" placeholder="e.g. v7.1.0">
       </div>
       <div class="field check-row full">

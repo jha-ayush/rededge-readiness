@@ -191,8 +191,7 @@ def make_handler(scenario, cors):
 
             if head in ("status", "version", "networkstatus", "camera_info",
                         "timesources"):
-                key = "networkstatus" if head == "networkstatus" else head
-                self._json(data[key])
+                self._json(data[head])
                 return
             if path == "captures.kmz":
                 self._bytes(make_kmz(), "application/vnd.google-earth.kmz")
@@ -217,6 +216,10 @@ def make_handler(scenario, cors):
                     self._bytes(fake_tiff(r[1]), "image/tiff")
                 return
             self._json({"error": "route not mocked: /%s" % path}, 404)
+
+        # HEAD shares GET's routing; _json and _bytes already withhold the body
+        # for it, so the two verbs answer with identical headers.
+        do_HEAD = do_GET
 
     return Handler
 

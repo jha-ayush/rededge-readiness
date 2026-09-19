@@ -133,15 +133,26 @@ function main() {
     if (got !== expect) fail(`${q} gave poll=${got}, expected ${expect}`);
   }
 
+  /* Counts are whole numbers, floored the same way in all three clients, so
+   * "6.7 satellites" cannot mean one thing on the web and another in Python. */
+  for (const [q, key, expect] of [["?sats=6.7", "sats", 6], ["?cams=1.9", "cams", 1], ["?sd=1.5", "sd", 1.5]]) {
+    const got = withQuery(q).loadCfg()[key];
+    if (got !== expect) fail(`${q} gave ${key}=${got}, expected ${expect}`);
+  }
+
   /* The camera is a local device by definition. A URL arriving in a query
    * string was written by whoever sent the link, not by the pilot, so a
    * non-local address there is not a configuration, it is an attempt to show a
-   * readout for a camera nobody is holding. */
+   * readout for a camera nobody is holding. Non-network schemes are refused
+   * with the rest: none of them is a camera either. */
   const remote = [
     "http://attacker.example",
     "https://example.com/status",
     "http://8.8.8.8",
     "//evil.example",
+    "javascript:alert(1)",
+    "data:text/plain,{}",
+    "file:///etc/hosts",
   ];
   for (const u of remote) {
     const got = withQuery("?url=" + encodeURIComponent(u)).loadCfg().url;

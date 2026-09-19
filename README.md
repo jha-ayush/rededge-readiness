@@ -1,3 +1,4 @@
+<!-- README.md -->
 <p align="center">
   <img src="assets/rededge-social.png" alt="RedEdge Readiness" width="820">
 </p>
@@ -58,12 +59,14 @@ app. The full reasoning, and the tradeoff behind every other decision here, is i
 | `ios/rededge-readiness.scriptable.js` | iPhone field tool. Paste into the Scriptable app. Native camera read, full-screen readout, Home Screen widget, on-device settings. This is the everyday tool. |
 | `rededge.py` | Zero-dependency Python client and CLI for a computer or Pi joined to the camera WiFi: `check`, `watch`, `status`, `offload`, `verify`, `capture`, `serve`, `init-config`. |
 | `rededge_mock.py` | Zero-dependency mock camera for testing the tools end to end without hardware. |
-| `test_rededge.py` | Stdlib unittest suite: shared readiness logic, the check contract, robustness against malformed payloads, the local serve proxy, and the offload walk. Run with `python3 -m unittest test_rededge`. Runs in CI. |
+| `test_rededge.py` | Stdlib unittest suite: shared readiness logic, the check contract, robustness against malformed and wrong-typed payloads, settings sanitizing, the local serve proxy and its headers, and the offload walk. It also parses `web/_headers` and holds the hosted policy to the page. Run with `python3 -m unittest test_rededge`. Runs in CI. |
 | `web_config_check.js` | Guards the web page's configuration boundary: a malformed threshold must fall back rather than becoming `NaN` and disabling the check, and a link must not be able to point the tool at a non-local host. Run with `node web_config_check.js`. Runs in CI. |
-| `parity_check.js` | Cross-client parity harness. Loads the web and iOS evaluators out of the shipped files and fails if they disagree on any canonical scenario or any individual check. Run with `node parity_check.js`. Runs in CI. Node is a development tool only; no field tool needs it. |
+| `parity_check.js` | Cross-client parity harness. Loads the web and iOS evaluators out of the shipped files, runs the Python evaluator on the mock camera's payloads, and fails if any two disagree on any canonical scenario, any probe, or any individual check. Run with `node parity_check.js` (needs `python3` on the PATH). Runs in CI. Node is a development tool only; no field tool needs it. |
 | `web/app.js` | The web client's logic, in its own file so the page can forbid inline script entirely. Served alongside the page by Cloudflare and by `rededge.py serve`. |
 | `web/rededge-readiness.html` | Responsive web version. Demo and review on any device. Live use needs the local proxy in `rededge.py serve`, so it is a computer tool. |
-| `web/_headers` | Security headers (Content-Security-Policy and more) applied to the hosted page on Cloudflare. |
+| `web/favicon.svg` | The page icon, served beside the page. |
+| `web/_headers` | Security headers (Content-Security-Policy and more) applied to the hosted page on Cloudflare. `rededge.py serve` sends the same page headers, and the test suite holds the two to each other. |
+| `web/_redirects` | Serves the page at the site root on Cloudflare, as a rewrite so the URL and its query string stay intact. |
 | `rededge.example.json` | Template for the shared config schema. Copy to `rededge.json` and edit. |
 | `ARCHITECTURE.md` | Design decisions and the reasoning behind them, with the tradeoff each one cost. |
 | `CHANGELOG.md` | What changed and why, including the defects an audit found and what now guards against their return. |
@@ -114,18 +117,26 @@ Python 3, no dependencies:
     python3 rededge.py offload ./flight --only tif    # pull captures off the card
     python3 rededge.py verify                  # post-flight: confirm captures exist, exit 0/1
     python3 rededge.py capture --bands 31 --block     # trigger one capture
-    python3 rededge.py serve --page web/rededge-readiness.html   # web UI + CORS proxy
+    python3 rededge.py serve                   # web UI + CORS proxy, serves web/rededge-readiness.html
 
 `serve` is what makes the web UI work live: it serves the page locally and
 proxies the camera's read-only routes with CORS added, then prints a link to
 open on the same WiFi. The proxy is read-only by design and cannot trigger a
-capture, delete a file, or reformat the card.
+capture, delete a file, or reformat the card: only allowlisted routes are
+forwarded, every path segment is vetted, and only `files/` may carry a
+sub-path. The page is served with the same security headers as the hosted
+demo. A dead link or an unreadable listing is a message and an exit code, not
+a traceback.
 
 ## Configuration
 
 All tools share one settings schema: `cameraUrl`, `timeout`, `sd`, `sats`,
-`pacc`, `volts`, `cams`, `fw`, `dls`. The iOS script persists it on the phone;
-`rededge.py` reads the same shape from a JSON file.
+`pacc`, `volts`, `cams`, `fw`, `dls`. The iOS script persists it on the phone
+(plus one phone-only key, `theme`); `rededge.py` reads the same shape from a
+JSON file. All three sanitize what they read the same way: a threshold that is
+not a finite, non-negative number falls back to the built-in default (Python
+says so on stderr), satellite and camera counts are whole numbers, and a zero
+timeout is not a timeout. A typo in a config file can loosen nothing.
 
 `rededge.py` resolves settings as built-in defaults, then the config file, then
 any command-line flag. It looks for the file at `--config <path>`, then the
@@ -147,7 +158,7 @@ real camera it sends no CORS headers by default; pass `--cors` to relax that.
 Scenarios: `go`, `sd`, `nosd`, `gps`, `pos`, `time`, `warmup`, `volts`, `rig`,
 `warn`, `dls`, `nogo`. These are the same set the web Source menu and the iPhone
 Demos menu use, so a given name produces the same readout in all three layers;
-the test suite cross-checks that they agree. The "no link" state is simulated by
+the parity harness checks that they agree, row by row. The "no link" state is simulated by
 not running the server. To exercise the iPhone script against the mock over
 WiFi, run the mock on a computer with `--host 0.0.0.0` and point the script's
 camera URL at that machine's address.
@@ -169,9 +180,14 @@ TFRs are out of scope by design; both link to UAS SkyCheck for flight legality.
 The tools are hardened where it is in their power to be, and honest about what
 is not. Camera-derived values (firmware, DLS status, time source, readings) are
 escaped or set as text before display in the web page and the iOS WebView, so a
-spoofed device on the open WiFi cannot inject markup. The hosted page ships a
-strict Content-Security-Policy and other headers (`web/_headers`). The `serve`
-proxy is read-only and GET-only; it cannot capture, delete, or reformat.
+spoofed device on the open WiFi cannot inject markup. A reading with the wrong
+type is not a reading: it reads UNKNOWN, never GO. File and folder names from
+the card are single path segments or they are ignored, so a listing cannot
+steer `offload` outside its destination folder. The hosted page ships a strict
+Content-Security-Policy and other headers (`web/_headers`), and the local
+server sends the same page headers. The `serve` proxy is read-only and
+GET-only, with every path segment vetted; it cannot capture, delete, or
+reformat.
 
 What no code change can fix: the camera itself is unauthenticated and
 unencrypted on an open WiFi access point. Anything in range can read or command

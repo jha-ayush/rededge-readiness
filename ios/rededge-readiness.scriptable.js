@@ -1,4 +1,4 @@
-// rededge-readiness.scriptable.js
+// ios/rededge-readiness.scriptable.js
 //
 // MicaSense RedEdge / Altum field readiness for iPhone, via Scriptable.
 //
@@ -32,7 +32,7 @@
 // Defaults. Editable on the device: open this script inside the Scriptable app
 // and choose Settings. Field use (Home Screen icon or widget) skips the menu
 // and runs the check directly. Settings persist in a local file.
-const DEMO = "";   // top-level demo for the widget: "" live, or go|sd|nosd|gps|pos|time|warmup|volts|dls|rig|warn|nogo|down
+const DEMO = "";   // top-level demo for the widget: "" live, or one of DEMO_KINDS below (go, sd, nosd, gps, pos, time, warmup, volts, rig, warn, dls, nogo, down)
 
 const DEFAULTS = {
   cameraUrl: "http://192.168.10.254", // WiFi default; Ethernet 192.168.1.83
@@ -52,14 +52,39 @@ function settingsPath() {
   return fm.joinPath(fm.documentsDirectory(), "rededge-settings.json");
 }
 
+/* Every threshold must be a usable number, whatever the settings file holds.
+   A string beside a number compares as NaN, and NaN compares false against
+   everything, so a corrupted or hand-edited file could quietly disable a
+   check; a negative floor could never fire. The Python client and the web
+   page apply the same rule (sanitize_settings and sanitizeCfg), so the three
+   tools refuse the same values. */
+const NUMERIC_KEYS = ["timeout", "sd", "sats", "pacc", "volts", "cams"];
+function sanitizeSettings(s) {
+  const out = { ...DEFAULTS, ...s };
+  for (const k of NUMERIC_KEYS) {
+    const n = (typeof out[k] === "string") ? parseFloat(out[k]) : out[k];
+    const ok = typeof n === "number" && isFinite(n) && n >= 0 && !(k === "timeout" && n <= 0);
+    out[k] = ok ? n : DEFAULTS[k];
+  }
+  out.sats = Math.floor(out.sats); out.cams = Math.floor(out.cams);
+  out.cameraUrl = (typeof out.cameraUrl === "string" && out.cameraUrl.trim()) ? out.cameraUrl.trim() : DEFAULTS.cameraUrl;
+  out.fw = (typeof out.fw === "string") ? out.fw.trim() : "";
+  out.dls = (typeof out.dls === "boolean") ? out.dls : /^(1|true|yes)$/i.test(String(out.dls).trim());
+  out.theme = (out.theme === "dark" || out.theme === "light") ? out.theme : "auto";
+  return out;
+}
+
 function loadSettings() {
-  const s = { ...DEFAULTS };
+  let s = { ...DEFAULTS };
   try {
     const fm = FileManager.local();
     const p = settingsPath();
-    if (fm.fileExists(p)) Object.assign(s, JSON.parse(fm.readString(p)));
+    if (fm.fileExists(p)) {
+      const raw = JSON.parse(fm.readString(p));
+      if (raw && typeof raw === "object" && !Array.isArray(raw)) Object.assign(s, raw);
+    }
   } catch (e) { /* fall back to defaults */ }
-  return s;
+  return sanitizeSettings(s);
 }
 
 function saveSettings(s) {
@@ -84,20 +109,21 @@ async function editSettings(s) {
   a.addCancelAction("Cancel");
   const idx = await a.presentAlert();
   if (idx === -1) return null;
-  const num = (v, d) => { const n = parseFloat(v); return isNaN(n) ? d : n; };
-  const th = (a.textFieldValue(8) || "auto").trim().toLowerCase();
-  const ns = {
-    cameraUrl: (a.textFieldValue(0) || DEFAULTS.cameraUrl).trim(),
+  // Raw field text goes through the one sanitizer, so a blank, a typo or a
+  // negative number falls back to the default here exactly as it would if it
+  // had been written into the settings file by hand.
+  const ns = sanitizeSettings({
+    cameraUrl: a.textFieldValue(0),
     timeout: s.timeout,
-    sd: num(a.textFieldValue(1), DEFAULTS.sd),
-    sats: Math.round(num(a.textFieldValue(2), DEFAULTS.sats)),
-    pacc: num(a.textFieldValue(3), DEFAULTS.pacc),
-    volts: num(a.textFieldValue(4), DEFAULTS.volts),
-    cams: Math.round(num(a.textFieldValue(5), DEFAULTS.cams)),
-    fw: (a.textFieldValue(6) || "").trim(),
+    sd: a.textFieldValue(1),
+    sats: a.textFieldValue(2),
+    pacc: a.textFieldValue(3),
+    volts: a.textFieldValue(4),
+    cams: a.textFieldValue(5),
+    fw: a.textFieldValue(6),
     dls: /^y/i.test((a.textFieldValue(7) || "").trim()),
-    theme: (th === "dark" || th === "light") ? th : "auto",
-  };
+    theme: (a.textFieldValue(8) || "auto").trim().toLowerCase(),
+  });
   saveSettings(ns);
   return ns;
 }
@@ -107,6 +133,16 @@ async function editSettings(s) {
 // ----------------------------------------------------------------------------
 const RANK = { "GO": 1, "CHECK": 2, "UNKNOWN": 2, "NO-GO": 3 };
 const worst = (arr) => arr.reduce((a, b) => (RANK[b] > RANK[a] ? b : a), "GO");
+
+// What counts as a reading. A value with the wrong type is not a reading: a
+// string compared against a threshold coerces to NaN, which compares false
+// against everything, so "abc" volts would skip the low-voltage branch and
+// read GO beside a blank value. A number that was never reported and a number
+// that arrived as text are the same thing to a pilot: unconfirmed. Both read
+// UNKNOWN. rededge.py holds the same rule in _num and _text, and
+// parity_check.js holds all three clients to it.
+const num = (v) => (typeof v === "number" && isFinite(v)) ? v : undefined;
+const text = (v) => (typeof v === "string" && v.length > 0) ? v : undefined;
 
 function evaluate(d, c) {
   if (!d.ok) {
@@ -124,40 +160,40 @@ function evaluate(d, c) {
 
   // SD storage
   (function () {
-    const st = s.sd_status, free = s.sd_gb_free;
+    const st = text(s.sd_status), free = num(s.sd_gb_free);
     let state = "GO", note = "card present and writable";
     if (st === "NotPresent") { state = "NO-GO"; note = "no SD card inserted"; }
     else if (st === "Full") { state = "NO-GO"; note = "card full, offload before flight"; }
     else if (s.sd_warn) { state = "CHECK"; note = "low-space warning or unrecommended filesystem"; }
-    else if (typeof free === "number" && free < c.sd) { state = "CHECK"; note = "below " + c.sd + " GB headroom"; }
+    else if (free !== undefined && free < c.sd) { state = "CHECK"; note = "below " + c.sd + " GB headroom"; }
     else if (st !== "Ok") { state = "UNKNOWN"; note = (st === undefined ? "card status not reported" : "unrecognized card status"); }
-    out.push({ label: "SD storage", read: (typeof free === "number" ? free.toFixed(1) : "--"), unit: "GB free", state, note });
+    else if (free === undefined) { state = "UNKNOWN"; note = "free space not reported"; }
+    out.push({ label: "SD storage", read: (free !== undefined ? free.toFixed(1) : "--"), unit: "GB free", state, note });
   })();
 
-  // GPS fix
+  // GPS fix: satellites and interference only. Position accuracy and clock
+  // validity each have a row of their own, so one cause flags one row.
   (function () {
-    const sats = s.gps_used_sats, pacc = s.p_acc;
+    const sats = num(s.gps_used_sats);
     let state = "GO", note = "usable fix for geotagging";
     if (sats === undefined) { state = "UNKNOWN"; note = "GPS not reported"; }
     else if (s.gps_warn) { state = "CHECK"; note = "receiver reports interference"; }
     else if (sats < c.sats) { state = "CHECK"; note = "only " + sats + " sats, want " + c.sats + "+"; }
-    else if (typeof pacc === "number" && pacc > c.pacc) { state = "CHECK"; note = "position error " + pacc.toFixed(1) + " m"; }
-    else if (s.utc_time_valid === false) { state = "CHECK"; note = "time not yet valid"; }
     out.push({ label: "GPS fix", read: (sats !== undefined ? String(sats) : "--"), unit: "sats", state, note });
   })();
 
   // Position accuracy
   (function () {
-    const pacc = s.p_acc;
+    const pacc = num(s.p_acc);
     let state = "GO";
     if (pacc === undefined) state = "UNKNOWN";
     else if (pacc > c.pacc) state = "CHECK";
-    out.push({ label: "Position accuracy", read: (typeof pacc === "number" ? pacc.toFixed(1) : "--"), unit: "m (1\u03c3)", state, note: (typeof pacc === "number" ? "threshold " + c.pacc + " m" : "not reported") });
+    out.push({ label: "Position accuracy", read: (pacc !== undefined ? pacc.toFixed(1) : "--"), unit: "m (1\u03c3)", state, note: (pacc !== undefined ? "threshold " + c.pacc + " m" : "not reported") });
   })();
 
   // Light sensor (DLS)
   (function () {
-    const dls = s.dls_status;
+    const dls = text(s.dls_status);
     let state = "GO", note = "irradiance sensor active";
     if (dls === "Error") { state = "NO-GO"; note = "DLS error, reflectance data unreliable"; }
     else if (dls === "NotPresent") { state = c.dls ? "CHECK" : "GO"; note = c.dls ? "no DLS, reflectance calibration limited" : "no DLS (not required)"; }
@@ -168,35 +204,40 @@ function evaluate(d, c) {
 
   // Supply voltage
   (function () {
-    const v = s.bus_volts;
+    const v = num(s.bus_volts);
     let state = "GO", note = "supply within configured floor";
     if (v === undefined) { state = "UNKNOWN"; note = "voltage not reported"; }
     else if (v < c.volts) { state = "CHECK"; note = "below " + c.volts + " V floor, verify pack"; }
-    out.push({ label: "Supply voltage", read: (typeof v === "number" ? v.toFixed(2) : "--"), unit: "V", state, note });
+    out.push({ label: "Supply voltage", read: (v !== undefined ? v.toFixed(2) : "--"), unit: "V", state, note });
   })();
 
   // Time source
   (function () {
-    const ts = s.time_source, valid = s.utc_time_valid;
+    const ts = text(s.time_source), valid = s.utc_time_valid;
     let state = "GO", note = (ts ? ts + " time source" : "time valid");
     if (valid === false) { state = "CHECK"; note = "UTC time not yet valid"; }
     else if (ts === undefined && valid === undefined) { state = "UNKNOWN"; note = "time source not reported"; }
     out.push({ label: "Time source", read: (ts || (valid ? "valid" : "--")), unit: "", state, note });
   })();
 
-  // Camera rig
+  // Camera rig. Only object entries count as devices; anything else in the
+  // list is noise from a payload that is not what the tool expects.
   (function () {
     if (!net || !Array.isArray(net.network_map)) {
       out.push({ label: "Camera rig", read: "--", unit: "", state: "UNKNOWN", note: "network status unavailable" });
       return;
     }
-    const cams = net.network_map.filter((x) => x.device_type === "Camera");
-    const dlss = net.network_map.filter((x) => String(x.device_type).startsWith("DLS"));
+    const devices = net.network_map.filter((x) => x && typeof x === "object" && !Array.isArray(x));
+    const cams = devices.filter((x) => x.device_type === "Camera");
+    const dlss = devices.filter((x) => String(x.device_type).startsWith("DLS"));
     let state = "GO";
     let note = cams.length + " camera" + (cams.length === 1 ? "" : "s") + (dlss.length ? ", DLS present" : "");
-    const fwSet = new Set(cams.map((x) => x.sw_version).filter(Boolean));
+    const fwSet = new Set(cams.map((x) => text(x.sw_version)).filter(Boolean));
     const cardIssue = cams.some((x) => x.sd_status && x.sd_status !== "Ok");
     if (c.cams > 0 && cams.length < c.cams) { state = "NO-GO"; note = "only " + cams.length + " of " + c.cams + " cameras online"; }
+    // The camera answered /status, so at least one camera exists; a map that
+    // lists none is not a rig of zero, it is a map that could not be read.
+    else if (cams.length === 0) { state = "UNKNOWN"; note = "no cameras listed"; }
     else if (cardIssue) { state = "CHECK"; note = "a networked camera has a card issue"; }
     else if (fwSet.size > 1) { state = "CHECK"; note = "mixed firmware across cameras"; }
     else if (c.dls && dlss.length === 0) { state = "CHECK"; note = "no DLS on the network"; }
@@ -205,7 +246,7 @@ function evaluate(d, c) {
 
   // Firmware
   (function () {
-    const v = ver.sw_version;
+    const v = text(ver.sw_version);
     let state = "GO", note = (v ? "running " + v : "version reported");
     if (v === undefined) { state = "UNKNOWN"; note = "version not reported"; }
     else if (c.fw && v !== c.fw) { state = "CHECK"; note = "expected " + c.fw + ", running " + v; }
@@ -230,6 +271,25 @@ async function getJSON(s, path) {
   r.timeoutInterval = s.timeout;
   return await r.loadJSON();
 }
+
+// The canonical demo set, shared with the web page's Source menu and the mock
+// camera's --scenario list. Only these names are demos; anything else is not.
+const DEMO_STATES = [
+  ["All clear (GO)", "go"],
+  ["Low SD storage", "sd"],
+  ["Weak GPS fix", "gps"],
+  ["Poor position accuracy", "pos"],
+  ["Clock not valid", "time"],
+  ["DLS warming up", "warmup"],
+  ["Low supply voltage", "volts"],
+  ["Rig firmware mismatch", "rig"],
+  ["Multiple warnings", "warn"],
+  ["No SD card (NO-GO)", "nosd"],
+  ["DLS error (NO-GO)", "dls"],
+  ["Multiple blocking (NO-GO)", "nogo"],
+  ["No link (NO-GO)", "down"],
+];
+const DEMO_KINDS = DEMO_STATES.map((row) => row[1]);
 
 function demoSnap(kind) {
   const base = {
@@ -280,17 +340,27 @@ async function countCaptures(s) {
   async function walk(remote) {
     const sub = remote.replace(/^\/+/, "");
     const listing = await getJSON(s, "/files/" + sub);
-    // A camera that answers with something other than an object is treated as
-    // an empty listing rather than crashing the walk mid-flight.
-    const node = (listing && typeof listing === "object") ? listing : {};
-    for (const f of (Array.isArray(node.files) ? node.files : [])) {
-      bytes += (f.size || 0);
-      const name = f.name || "";
+    // A card that answers with something other than a listing is an error,
+    // not an empty card: "no captures" is a verdict a crew acts on, and it has
+    // to come from a listing, not from a parse failure. (rededge.py raises on
+    // the same condition, and the caller here shows the no-link readout.)
+    if (!listing || typeof listing !== "object" || Array.isArray(listing)) {
+      throw new Error("malformed listing at /files/" + sub);
+    }
+    // Entries are vetted one by one: an entry that is not an object, a name
+    // that is not a string, or a size that is not a number is skipped, never
+    // added to a total. A string size would otherwise concatenate onto the
+    // byte count and turn it into text.
+    for (const f of (Array.isArray(listing.files) ? listing.files : [])) {
+      if (!f || typeof f !== "object") continue;
+      const name = (typeof f.name === "string") ? f.name : "";
+      if (typeof f.size === "number" && isFinite(f.size)) bytes += f.size;
       if (name.toUpperCase().startsWith("IMG_") && name.includes("_")) {
         caps.add(remote + "|" + name.substring(0, name.lastIndexOf("_")));
       }
     }
-    for (const d of (Array.isArray(node.directories) ? node.directories : [])) {
+    for (const d of (Array.isArray(listing.directories) ? listing.directories : [])) {
+      if (typeof d !== "string" || !d || d === "." || d === ".." || d.includes("/")) continue;
       if ((remote === "" || remote === "/") && d.toUpperCase().endsWith("SET")) sets++;
       await walk((remote.replace(/\/+$/, "") + "/" + d).replace(/^\/+/, ""));
     }
@@ -302,7 +372,20 @@ async function countCaptures(s) {
 async function runPostflight(s) {
   let info;
   try { info = await countCaptures(s); }
-  catch (e) { return evaluate({ ok: false }, s); }  // reuse the no-link readout
+  catch (e) {
+    const msg = String(e && e.message || e);
+    // A listing that arrived but was not a listing is its own message; a
+    // dead link reuses the no-link readout.
+    if (msg.startsWith("malformed listing")) {
+      return {
+        overall: "NO-GO",
+        reason: "Post-flight: the card could not be read.",
+        sub: "The camera answered, but not with a file listing. Re-check the link and the card, then run again.",
+        checks: [{ label: "Card listing", read: "unreadable", state: "NO-GO", note: msg }],
+      };
+    }
+    return evaluate({ ok: false }, s);
+  }
   let st = {};
   try {
     const raw = await getJSON(s, "/status");
@@ -317,13 +400,25 @@ async function runPostflight(s) {
     { label: "SET folders", read: String(info.sets), unit: "", state: info.sets > 0 ? "GO" : "CHECK", note: info.sets > 0 ? "capture folders" : "no capture folders found" },
     { label: "Data on card", read: (info.bytes / 1e6).toFixed(1), unit: "MB", state: info.bytes > 0 ? "GO" : "CHECK", note: info.bytes > 0 ? "total image bytes" : "no image data found" },
   ];
-  if (typeof st.sd_gb_free === "number") {
-    checks.push({ label: "SD free", read: st.sd_gb_free.toFixed(1), unit: "GB", state: "GO", note: "remaining space" });
+  const free = num(st.sd_gb_free);
+  if (free !== undefined) {
+    // Judged against the same floor as pre-flight, so a card that is now
+    // below headroom is flagged for the next flight rather than shown green.
+    const low = free < s.sd;
+    checks.push({ label: "SD free", read: free.toFixed(1), unit: "GB", state: low ? "CHECK" : "GO",
+                  note: low ? "below " + s.sd + " GB headroom, offload before the next flight" : "remaining space" });
   }
+  // The worst row sets the card's state, as it does pre-flight.
+  const overall = worst(checks.map((x) => x.state));
+  const flagged = checks.filter((x) => x.state !== "GO");
+  let sub;
+  if (!ok) sub = "Do not pack up before re-checking the card.";
+  else if (overall === "GO") sub = "Confirm coverage before leaving the site.";
+  else sub = "Confirm coverage before leaving the site. " + flagged.map((x) => x.label + ": " + x.note).join("; ") + ".";
   return {
-    overall: ok ? "GO" : "CHECK",
+    overall,
     reason: ok ? "Post-flight: captures found." : "Post-flight: no captures found.",
-    sub: ok ? "Confirm coverage before leaving the site." : "Do not pack up before re-checking the card.",
+    sub,
     checks,
   };
 }
@@ -436,6 +531,7 @@ function buildHTML(res, theme, isDemo, noLink, cfg) {
   .prep-intro{padding:11px 14px 2px;margin:0;font-size:12px;color:var(--muted);line-height:1.45}
   .prep-list{padding:4px 8px 8px}
   .pitem{display:flex;align-items:flex-start;gap:11px;padding:11px 10px;border-radius:9px}
+  .pitem:focus-visible{outline:2px solid var(--go);outline-offset:1px}
   .pitem .cbox{flex:none;width:18px;height:18px;margin-top:1px;border-radius:5px;border:1.5px solid var(--line);background:var(--bg);position:relative}
   .pitem .ctext{font-size:13px;line-height:1.4;color:var(--text)}
   .pitem.done .cbox{background:var(--go);border-color:var(--go)}
@@ -456,15 +552,15 @@ function buildHTML(res, theme, isDemo, noLink, cfg) {
     <div class="prep-h" id="prepH"><span class="chev">&#8250;</span>Pre-flight prep<span class="pc" id="pc"></span></div>
     <div class="prep-body">
       <p class="prep-intro">Manual steps the camera cannot report for itself. Tap each once done.</p>
-      <div class="prep-list">
-        <div class="pitem"><span class="cbox"></span><span class="ctext">Reflectance calibration panel captured, before and after the flight</span></div>
-        <div class="pitem"><span class="cbox"></span><span class="ctext">All lenses clean and unobstructed across every band</span></div>
-        <div class="pitem"><span class="cbox"></span><span class="ctext">DLS irradiance sensor clean, level, clear view of the sky</span></div>
-        <div class="pitem"><span class="cbox"></span><span class="ctext">SD card formatted for the mission and firmly seated</span></div>
-        <div class="pitem"><span class="cbox"></span><span class="ctext">Firmware matched across all bands and cameras</span></div>
-        <div class="pitem"><span class="cbox"></span><span class="ctext">Camera mount secure, vibration isolation intact</span></div>
-        <div class="pitem"><span class="cbox"></span><span class="ctext">Capture interval and overlap set for the mission</span></div>
-        <div class="pitem"><span class="cbox"></span><span class="ctext">GPS lock acquired before launch</span></div>
+      <div class="prep-list" role="group" aria-label="Pre-flight prep checklist">
+        <div class="pitem" role="checkbox" aria-checked="false" tabindex="0"><span class="cbox" aria-hidden="true"></span><span class="ctext">Reflectance calibration panel captured, before and after the flight</span></div>
+        <div class="pitem" role="checkbox" aria-checked="false" tabindex="0"><span class="cbox" aria-hidden="true"></span><span class="ctext">All lenses clean and unobstructed across every band</span></div>
+        <div class="pitem" role="checkbox" aria-checked="false" tabindex="0"><span class="cbox" aria-hidden="true"></span><span class="ctext">DLS irradiance sensor clean, level, clear view of the sky</span></div>
+        <div class="pitem" role="checkbox" aria-checked="false" tabindex="0"><span class="cbox" aria-hidden="true"></span><span class="ctext">SD card formatted for the mission and firmly seated</span></div>
+        <div class="pitem" role="checkbox" aria-checked="false" tabindex="0"><span class="cbox" aria-hidden="true"></span><span class="ctext">Firmware matched across all bands and cameras</span></div>
+        <div class="pitem" role="checkbox" aria-checked="false" tabindex="0"><span class="cbox" aria-hidden="true"></span><span class="ctext">Camera mount secure, vibration isolation intact</span></div>
+        <div class="pitem" role="checkbox" aria-checked="false" tabindex="0"><span class="cbox" aria-hidden="true"></span><span class="ctext">Capture interval and overlap set for the mission</span></div>
+        <div class="pitem" role="checkbox" aria-checked="false" tabindex="0"><span class="cbox" aria-hidden="true"></span><span class="ctext">GPS lock acquired before launch</span></div>
       </div>
       <div class="prep-air"><b>Airspace, LAANC, and TFRs are not checked here.</b> Sensor readiness only. For flight legality, use <a href="https://uas-skycheck.app">UAS SkyCheck</a>.</div>
     </div>
@@ -479,8 +575,12 @@ function buildHTML(res, theme, isDemo, noLink, cfg) {
   var prep=document.getElementById('prep'), h=document.getElementById('prepH');
   if(h) h.addEventListener('click',function(){ prep.classList.toggle('open'); });
   function upd(){ var n=document.querySelectorAll('.pitem').length, d=document.querySelectorAll('.pitem.done').length, c=document.getElementById('pc'); if(c) c.textContent=d+' of '+n; }
+  function toggle(it){ var done=it.classList.toggle('done'); it.setAttribute('aria-checked', done?'true':'false'); upd(); }
   var items=document.querySelectorAll('.pitem');
-  for(var i=0;i<items.length;i++){ (function(it){ it.addEventListener('click',function(){ it.classList.toggle('done'); upd(); }); })(items[i]); }
+  for(var i=0;i<items.length;i++){ (function(it){
+    it.addEventListener('click',function(){ toggle(it); });
+    it.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(it); } });
+  })(items[i]); }
   upd();
 })();</script>
 </div></body></html>`;
@@ -539,8 +639,11 @@ async function main() {
 
   if (q.action === "postflight") { result = await runPostflight(s); forced = true; }
   else if (q.source) {
+    // Only a known demo name replays a demo. An unknown name used to fall
+    // through to the healthy fixture, so a typo on an NFC tag showed a GO
+    // readout; a name that is not a demo is now a live read.
     const src = String(q.source).replace(/^demo-/, "");
-    demoKind = (src === "live") ? "" : src;
+    demoKind = DEMO_KINDS.includes(src) ? src : "";
     forced = true;
   }
 
@@ -561,29 +664,14 @@ async function main() {
     else if (i === 2) { const ns = await editSettings(s); if (ns) s = ns; demoKind = ""; }
     else if (i === 3) {
       // Second sheet: a demo readout for each readiness state, no camera needed.
-      const demos = [
-        ["All clear (GO)", "go"],
-        ["Low SD storage", "sd"],
-        ["Weak GPS fix", "gps"],
-        ["Poor position accuracy", "pos"],
-        ["Clock not valid", "time"],
-        ["DLS warming up", "warmup"],
-        ["Low supply voltage", "volts"],
-        ["Rig firmware mismatch", "rig"],
-        ["Multiple warnings", "warn"],
-        ["No SD card (NO-GO)", "nosd"],
-        ["DLS error (NO-GO)", "dls"],
-        ["Multiple blocking (NO-GO)", "nogo"],
-        ["No link (NO-GO)", "down"],
-      ];
       const dm = new Alert();
       dm.title = "Demo states";
       dm.message = "Preview a readout. No camera needed.";
-      demos.forEach((row) => dm.addAction(row[0]));
+      DEMO_STATES.forEach((row) => dm.addAction(row[0]));
       dm.addCancelAction("Back");
       const j = await dm.presentSheet();
       if (j === -1) { Script.complete(); return; }
-      demoKind = demos[j][1];
+      demoKind = DEMO_STATES[j][1];
     }
     else demoKind = "";
   }

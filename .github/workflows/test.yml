@@ -1,3 +1,4 @@
+# .github/workflows/test.yml
 name: tests
 
 on:
@@ -6,28 +7,36 @@ on:
   pull_request:
     branches: [main]
 
+# Read-only token: nothing here writes to the repository.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
       - name: Compile check (Python)
         run: python -m py_compile rededge.py rededge_mock.py test_rededge.py
 
+      # The suite also holds web/_headers to the page contract: the hosted
+      # Content Security Policy must allow the page's own script and forbid
+      # inline script, and the local server must send the same headers.
       - name: Run tests
         run: python -m unittest test_rededge -v
 
       # Two of the three clients are JavaScript. Without the steps below, a
       # syntax error in the iPhone script or the web page ships undetected,
-      # because the Python suite cannot see either of them.
-      - uses: actions/setup-node@v4
+      # because the Python suite cannot see either of them. Node 24 is the
+      # current LTS line; 20 left support in April 2026.
+      - uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Syntax check (iPhone script)
         run: node --check ios/rededge-readiness.scriptable.js
@@ -37,8 +46,9 @@ jobs:
 
       # The readiness logic exists three times, once per client. This is what
       # keeps the copies from drifting apart: it runs every canonical scenario
-      # through the web and iOS evaluators and fails if they disagree with each
-      # other or with the expected table that test_rededge.py holds Python to.
+      # and every probe through the web, iOS and Python evaluators and fails if
+      # any two disagree on the verdict or on any individual check. It needs
+      # python3 on the PATH, which the setup-python step above provides.
       - name: Cross-client parity
         run: node parity_check.js
 

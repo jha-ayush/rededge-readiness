@@ -1,5 +1,5 @@
 /*
- * app.js
+ * web/app.js
  *
  * The readiness client for the web page.
  *
@@ -57,6 +57,9 @@ function sanitizeCfg(c){
     const n=parseFloat(c[k]);
     c[k]=(isFinite(n) && n>=0) ? n : DEFAULTS[k];
   }
+  // Counts are whole numbers. "6.7 satellites" is not a threshold anyone
+  // meant, and the Python client floors the same two keys.
+  c.sats=Math.floor(c.sats); c.cams=Math.floor(c.cams);
   // A zero or absent poll interval becomes setInterval(fn, 0), which polls the
   // camera as fast as the network allows and flattens a phone battery. The
   // ceiling keeps the "next in" countdown honest rather than effectively frozen.
@@ -110,13 +113,23 @@ let cfg=loadCfg();
 const RANK={"GO":1,"CHECK":2,"UNKNOWN":2,"NO-GO":3};
 const worst=arr=>arr.reduce((a,b)=>RANK[b]>RANK[a]?b:a,"GO");
 
+/* What counts as a reading. A value with the wrong type is not a reading:
+   JavaScript would happily compare a string against a threshold, coercing it
+   to NaN, and NaN compares false against everything, so "abc" volts skipped
+   the low-voltage branch and read GO beside a blank value. A number that was
+   never reported and a number that arrived as text are the same thing to a
+   pilot: unconfirmed. Both read UNKNOWN. rededge.py holds the same rule in
+   _num and _text, and parity_check.js holds all three clients to it. */
+const num=v=>(typeof v==="number" && isFinite(v))?v:undefined;
+const text=v=>(typeof v==="string" && v.length>0)?v:undefined;
+
 /* ---------- evaluation (pure) ---------- */
 function evaluate(d, c){
   // d: {ok, status, network, version}  ok=false means no link
   if(!d.ok){
     return {overall:"NO-GO", reason:"No link to the camera.",
       sub:"Confirm you are joined to the camera WiFi and the base URL is correct.",
-      checks:[{label:"Camera link",read:"down",state:"NO-GO",note:"No response from "+c.url}]};
+      checks:[{label:"Camera link",read:"down",state:"NO-GO",note:"no response from "+c.url}]};
   }
   const s=(d.status&&typeof d.status==="object")?d.status:{},
         net=d.network,
@@ -125,44 +138,45 @@ function evaluate(d, c){
 
   // SD card
   (function(){
-    const st=s.sd_status, free=s.sd_gb_free;
+    const st=text(s.sd_status), free=num(s.sd_gb_free);
     let state="GO", note="card present and writable";
     if(st==="NotPresent"){state="NO-GO";note="no SD card inserted";}
     else if(st==="Full"){state="NO-GO";note="card full, offload before flight";}
     else if(s.sd_warn){state="CHECK";note="low-space warning or unrecommended filesystem";}
-    else if(typeof free==="number" && free<c.sd){state="CHECK";note="below "+c.sd+" GB headroom";}
+    else if(free!==undefined && free<c.sd){state="CHECK";note="below "+c.sd+" GB headroom";}
     else if(st!=="Ok"){state="UNKNOWN";note=(st===undefined?"card status not reported":"unrecognized card status");}
+    else if(free===undefined){state="UNKNOWN";note="free space not reported";}
     out.push({label:"SD storage",
-      read:(typeof free==="number"?free.toFixed(1):"--"),unit:"GB free",state,note});
+      read:(free!==undefined?free.toFixed(1):"--"),unit:"GB free",state,note});
   })();
 
-  // GPS fix
+  // GPS fix: satellites and interference only. Position accuracy and clock
+  // validity each have a row of their own, so one cause flags one row.
   (function(){
-    const sats=s.gps_used_sats, pacc=s.p_acc, warn=s.gps_warn, tvalid=s.utc_time_valid;
+    const sats=num(s.gps_used_sats), warn=s.gps_warn;
     let state="GO", note="usable fix for geotagging";
     if(sats===undefined){state="UNKNOWN";note="GPS not reported";}
     else if(warn){state="CHECK";note="receiver reports interference";}
     else if(sats<c.sats){state="CHECK";note="only "+sats+" sats, want "+c.sats+"+";}
-    else if(typeof pacc==="number" && pacc>c.pacc){state="CHECK";note="position error "+pacc.toFixed(1)+" m";}
-    else if(tvalid===false){state="CHECK";note="time not yet valid";}
     out.push({label:"GPS fix",
       read:(sats!==undefined?String(sats):"--"),unit:"sats",state,note});
   })();
 
-  // position accuracy (separate readout)
+  // Position accuracy (its own row: a receiver can hold plenty of satellites
+  // and still report an error ellipse too wide for the survey)
   (function(){
-    const pacc=s.p_acc;
+    const pacc=num(s.p_acc);
     let state="GO";
     if(pacc===undefined){state="UNKNOWN";}
     else if(pacc>c.pacc){state="CHECK";}
     out.push({label:"Position accuracy",
-      read:(typeof pacc==="number"?pacc.toFixed(1):"--"),unit:"m (1\u03c3)",state,
-      note:(typeof pacc==="number"?"threshold "+c.pacc+" m":"not reported")});
+      read:(pacc!==undefined?pacc.toFixed(1):"--"),unit:"m (1\u03c3)",state,
+      note:(pacc!==undefined?"threshold "+c.pacc+" m":"not reported")});
   })();
 
   // Light sensor (DLS)
   (function(){
-    const dls=s.dls_status;
+    const dls=text(s.dls_status);
     let state="GO", note="irradiance sensor active";
     if(dls==="Error"){state="NO-GO";note="DLS error, reflectance data unreliable";}
     else if(dls==="NotPresent"){state=c.dls?"CHECK":"GO";note=c.dls?"no DLS, reflectance calibration limited":"no DLS (not required)";}
@@ -173,36 +187,41 @@ function evaluate(d, c){
 
   // Power
   (function(){
-    const v=s.bus_volts;
+    const v=num(s.bus_volts);
     let state="GO", note="supply within configured floor";
     if(v===undefined){state="UNKNOWN";note="voltage not reported";}
     else if(v<c.volts){state="CHECK";note="below "+c.volts+" V floor, verify pack";}
     out.push({label:"Supply voltage",
-      read:(typeof v==="number"?v.toFixed(2):"--"),unit:"V",state,note});
+      read:(v!==undefined?v.toFixed(2):"--"),unit:"V",state,note});
   })();
 
   // Time source
   (function(){
-    const ts=s.time_source, valid=s.utc_time_valid;
+    const ts=text(s.time_source), valid=s.utc_time_valid;
     let state="GO", note=(ts?ts+" time source":"time valid");
     if(valid===false){state="CHECK";note="UTC time not yet valid";}
     else if(ts===undefined && valid===undefined){state="UNKNOWN";note="time source not reported";}
     out.push({label:"Time source",read:(ts||(valid?"valid":"--")),unit:"",state,note});
   })();
 
-  // Network rig
+  // Network rig. Only object entries count as devices; anything else in the
+  // list is noise from a payload that is not what the tool expects.
   (function(){
     if(!net||!Array.isArray(net.network_map)){
       out.push({label:"Camera rig",read:"--",unit:"",state:"UNKNOWN",note:"network status unavailable"});
       return;
     }
-    const cams=net.network_map.filter(x=>x.device_type==="Camera");
-    const dls=net.network_map.filter(x=>String(x.device_type).startsWith("DLS"));
+    const devices=net.network_map.filter(x=>x&&typeof x==="object"&&!Array.isArray(x));
+    const cams=devices.filter(x=>x.device_type==="Camera");
+    const dls=devices.filter(x=>String(x.device_type).startsWith("DLS"));
     let state="GO", note=cams.length+" camera"+(cams.length===1?"":"s")+(dls.length?", DLS present":"");
     // per-device storage
     const cardIssue=cams.some(x=>x.sd_status&&x.sd_status!=="Ok");
-    const fwSet=new Set(cams.map(x=>x.sw_version).filter(Boolean));
+    const fwSet=new Set(cams.map(x=>text(x.sw_version)).filter(Boolean));
     if(c.cams>0 && cams.length<c.cams){state="NO-GO";note="only "+cams.length+" of "+c.cams+" cameras online";}
+    // The camera answered /status, so at least one camera exists; a map that
+    // lists none is not a rig of zero, it is a map that could not be read.
+    else if(cams.length===0){state="UNKNOWN";note="no cameras listed";}
     else if(cardIssue){state="CHECK";note="a networked camera has a card issue";}
     else if(fwSet.size>1){state="CHECK";note="mixed firmware across cameras";}
     else if(c.dls && dls.length===0){state="CHECK";note="no DLS on the network";}
@@ -211,7 +230,7 @@ function evaluate(d, c){
 
   // Firmware
   (function(){
-    const v=ver.sw_version;
+    const v=text(ver.sw_version);
     let state="GO", note=(v?"running "+v:"version reported");
     if(v===undefined){state="UNKNOWN";note="version not reported";}
     else if(c.fw && v!==c.fw){state="CHECK";note="expected "+c.fw+", running "+v;}
@@ -243,9 +262,12 @@ async function readLive(c){
     // secondary endpoint degrades only its own check, not the whole readout.
     const status=await fetchJSON(c.url,"/status",ctrl.signal);
     if(!status||typeof status!=="object") return {ok:false,error:"malformed status"};
-    let version=null, network=null;
-    try{ version=await fetchJSON(c.url,"/version",ctrl.signal); }catch(_){ }
-    try{ network=await fetchJSON(c.url,"/networkstatus",ctrl.signal); }catch(_){ }
+    // The two secondary reads go out together, as they do on the phone, so
+    // the readout does not pay for them one after the other on a slow link.
+    const [version,network]=await Promise.all([
+      fetchJSON(c.url,"/version",ctrl.signal).catch(()=>null),
+      fetchJSON(c.url,"/networkstatus",ctrl.signal).catch(()=>null)
+    ]);
     return {ok:true,status,version,network};
   }catch(e){
     return {ok:false,error:String(e.message||e)};
@@ -417,8 +439,9 @@ function currentTheme(){ return document.documentElement.getAttribute("data-them
 function applyTheme(t){
   document.documentElement.setAttribute("data-theme", t);
   const btn=el("themeBtn");
-  btn.innerHTML = (t==="dark") ? "&#9728;" : "&#9790;";   // sun in dark, moon in light
+  btn.textContent = (t==="dark") ? "☀" : "☾";   // sun in dark, moon in light
   btn.title = (t==="dark") ? "Switch to light" : "Switch to dark";
+  btn.setAttribute("aria-label", btn.title);
   const meta=document.querySelector('meta[name="theme-color"]');
   if(meta) meta.setAttribute("content", t==="dark" ? "#0b0e13" : "#e7ebf0");
 }
@@ -471,7 +494,11 @@ function updatePrepCount(){
   const done=el("prepList").querySelectorAll(".prep-item.done").length;
   el("prepCount").textContent=done+" of "+items.length;
 }
-function togglePrep(it){ it.classList.toggle("done"); updatePrepCount(); }
+function togglePrep(it){
+  const done=it.classList.toggle("done");
+  it.setAttribute("aria-checked", done?"true":"false");   // the rows are checkboxes to assistive tech
+  updatePrepCount();
+}
 el("prepList").addEventListener("click",e=>{ const it=e.target.closest(".prep-item"); if(it) togglePrep(it); });
 el("prepList").addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ const it=e.target.closest(".prep-item"); if(it){ e.preventDefault(); togglePrep(it); } } });
 updatePrepCount();

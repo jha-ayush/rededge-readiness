@@ -1,8 +1,15 @@
+# web/_headers
 # Cloudflare security headers for the deployed readiness page.
-# Applies to the hosted site only; the local serve/proxy and the phone tool
-# set their own context. Tighten, do not loosen, these without reason.
+# Applies to the hosted site only. The local "rededge.py serve" sends the same
+# page headers from PAGE_HEADERS in rededge.py, minus HSTS and the opener
+# policy, and test_rededge.py holds the two to each other: change one, change
+# both, or the suite says so. Tighten, do not loosen, these without reason.
+#
+# script-src 'self' is what lets web/app.js run at all. The policy once said
+# 'unsafe-inline' with no 'self', left over from when the script was inline,
+# and every load of the hosted demo blocked its own client script.
 /*
-  Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: no-referrer
