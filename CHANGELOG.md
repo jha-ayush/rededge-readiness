@@ -4,7 +4,7 @@
 Notable changes to RedEdge Readiness. Entries record what changed and, where it
 matters, why, because the reason is usually the part worth keeping.
 
-## American English guard, 19 September 2026
+## American English guard, September 19, 2026
 
 `american_english_check.py` reads every text file in the tree against an
 explicit list of British spellings and fails the build on one. The tree was
@@ -15,7 +15,7 @@ before anything looked. Explicit list, not stem guessing, so "optimistic" and
 contract; a floor on files scanned turns a broken walk into a red run.
 Mutated before it was trusted. Runs in CI.
 
-## Second audit pass, 19 September 2026
+## Second audit pass, September 19, 2026
 
 A second file-by-file pass, bottom up, under the same rule as the first: a
 false all-clear must be structurally impossible, not merely unlikely. Every
@@ -207,7 +207,7 @@ across three.
 - **No hardware has been read.** Unchanged from the first pass, and still the
   largest gap: every fixture here is a model of the camera, not the camera.
 
-## Hosted demo moved, 18 September 2026
+## Hosted demo moved, September 18, 2026
 
 The Cloudflare account subdomain changed from `write2ayushjha` to `sudokodes`, so
 the hosted demo is now at `rededge-readiness.sudokodes.workers.dev`. The previous

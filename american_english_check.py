@@ -7,7 +7,7 @@ English, and this fails the build on a British spelling anywhere in it.
 
 The product is for pilots in the United States, and its three clients and
 their documents read as one voice or they do not. A first pass on
-19 September 2026 found and corrected the drift by hand ("enquiries", "belt
+September 19, 2026 found and corrected the drift by hand ("enquiries", "belt
 and braces"); the sibling project found 1,612 such words across 240 files
 that had accumulated one commit at a time with nothing looking. This is the
 thing that looks.
@@ -40,7 +40,7 @@ SKIP_DIRS = {".git", "node_modules", "__pycache__", ".wrangler", "_mock_pull"}
 SKIP_FILES = {"american_english_check.py"}  # names every British form on purpose
 EXT = {".md", ".py", ".js", ".mjs", ".html", ".yml", ".yaml", ".jsonc", ".json", ".css", ".txt"}
 NAMES = {"_headers", "_redirects", ".gitignore"}
-MIN_FILES = 15  # the tree held 19 such files on 19 September 2026
+MIN_FILES = 15  # the tree held 19 such files on September 19, 2026
 PROTECT = re.compile(r"(aria-labelledby|labelledby|labelledBy|arialabelledby)")
 
 
@@ -310,9 +310,15 @@ def british_to_american() -> dict:
 
 MAP = british_to_american()
 WORD = re.compile(r"[A-Za-z]+")
+# Day-first dates ("13 September 2026") are the British order; every date a
+# pilot sees is month first ("September 13, 2026"), and prose follows suit.
+MONTHS = "January|February|March|April|May|June|July|August|September|October|November|December"
+DAY_FIRST = re.compile(r"(?<![\d/\-])\b([1-9]|[12]\d|3[01])(?:st|nd|rd|th)? (" + MONTHS + r"),? (\d{4})\b")
 
 
 def scan_line(line: str):
+    for m in DAY_FIRST.finditer(line):
+        yield m.group(0), f"{m.group(2)} {m.group(1)}, {m.group(3)}"
     for i, part in enumerate(PROTECT.split(line)):
         if i % 2 == 1:
             continue
