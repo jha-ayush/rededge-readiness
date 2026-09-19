@@ -4,6 +4,17 @@
 Notable changes to RedEdge Readiness. Entries record what changed and, where it
 matters, why, because the reason is usually the part worth keeping.
 
+## American English guard, 19 September 2026
+
+`american_english_check.py` reads every text file in the tree against an
+explicit list of British spellings and fails the build on one. The tree was
+already clean after the second audit pass; the guard is what keeps it so, one
+commit at a time being how the sibling project accumulated 1,612 of them
+before anything looked. Explicit list, not stem guessing, so "optimistic" and
+"analysis" are not matches; `aria-labelledby` is protected as an external
+contract; a floor on files scanned turns a broken walk into a red run.
+Mutated before it was trusted. Runs in CI.
+
 ## Second audit pass, 19 September 2026
 
 A second file-by-file pass, bottom up, under the same rule as the first: a

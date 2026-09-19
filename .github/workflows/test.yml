@@ -22,7 +22,13 @@ jobs:
           python-version: "3.12"
 
       - name: Compile check (Python)
-        run: python -m py_compile rededge.py rededge_mock.py test_rededge.py
+        run: python -m py_compile rededge.py rededge_mock.py test_rededge.py american_english_check.py
+
+      # The tree is written in American English. The product is for pilots in
+      # the United States, and spelling drifts one commit at a time unless
+      # something reads every file; this does, against an explicit list.
+      - name: American English
+        run: python american_english_check.py
 
       # The suite also holds web/_headers to the page contract: the hosted
       # Content Security Policy must allow the page's own script and forbid

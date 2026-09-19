@@ -61,6 +61,7 @@ app. The full reasoning, and the tradeoff behind every other decision here, is i
 | `rededge_mock.py` | Zero-dependency mock camera for testing the tools end to end without hardware. |
 | `test_rededge.py` | Stdlib unittest suite: shared readiness logic, the check contract, robustness against malformed and wrong-typed payloads, settings sanitizing, the local serve proxy and its headers, and the offload walk. It also parses `web/_headers` and holds the hosted policy to the page. Run with `python3 -m unittest test_rededge`. Runs in CI. |
 | `web_config_check.js` | Guards the web page's configuration boundary: a malformed threshold must fall back rather than becoming `NaN` and disabling the check, and a link must not be able to point the tool at a non-local host. Run with `node web_config_check.js`. Runs in CI. |
+| `american_english_check.py` | Holds the tree to American English: every text file is read against an explicit list of British spellings and the build fails on one. Run with `python3 american_english_check.py`. Runs in CI. |
 | `parity_check.js` | Cross-client parity harness. Loads the web and iOS evaluators out of the shipped files, runs the Python evaluator on the mock camera's payloads, and fails if any two disagree on any canonical scenario, any probe, or any individual check. Run with `node parity_check.js` (needs `python3` on the PATH). Runs in CI. Node is a development tool only; no field tool needs it. |
 | `web/app.js` | The web client's logic, in its own file so the page can forbid inline script entirely. Served alongside the page by Cloudflare and by `rededge.py serve`. |
 | `web/rededge-readiness.html` | Responsive web version. Demo and review on any device. Live use needs the local proxy in `rededge.py serve`, so it is a computer tool. |
@@ -74,7 +75,7 @@ app. The full reasoning, and the tradeoff behind every other decision here, is i
 | `LICENSE.md` | Proprietary, source-available. Read and evaluate, no reuse. |
 | `wrangler.jsonc` | Cloudflare Worker config for the hosted demo page. |
 | `assets/` | Icon and social card. |
-| `.github/workflows/` | CI on every push and pull request: Python compile, test suite, syntax check of both JavaScript clients, the cross-client parity harness, and the web config boundary guard. |
+| `.github/workflows/` | CI on every push and pull request: Python compile, test suite, the American English guard, syntax check of both JavaScript clients, the cross-client parity harness, and the web config boundary guard. |
 | `.gitignore` | Keeps Python artifacts and offloaded imagery out of the repo. |
 
 ## iPhone (everyday use)
