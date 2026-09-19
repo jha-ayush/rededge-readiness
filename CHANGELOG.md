@@ -4,6 +4,28 @@
 Notable changes to RedEdge Readiness. Entries record what changed and, where it
 matters, why, because the reason is usually the part worth keeping.
 
+## Home Screen icon, September 19, 2026
+
+The page now names a 180 by 180 `apple-touch-icon.png` beside the SVG
+favicon. iOS does not use an SVG favicon for a Home Screen bookmark; without a
+raster icon it takes a screenshot of the page, so a pilot who added the tool
+to a Home Screen got a thumbnail of the header. The icon is the favicon's
+design at Home Screen size on a filled square, because iOS rounds the corners
+itself.
+
+The local server's asset allowlist (`STATIC_ALLOW` in `rededge.py`) now lives
+at module level and gained the name, and a new test reads every asset the
+page's own markup names (icon links, the script, the social image) and holds
+each one to the allowlist, to a file beside the page, and to a served answer
+with the type its extension demands and `nosniff`. The hosted config files
+beside the page (`_headers`, `_redirects`) must answer 404 by name, so the
+allowlist stays an allowlist. A second test holds the icon's `sizes` and the
+social card's `og:image:width` and `og:image:height` to the bytes of the files.
+Both tests were mutated eleven ways before they were trusted: allowlist entry
+dropped, wrong type (PNG and SVG), off-site href, a new asset with no entry, file missing,
+wrong size, the tags lying about size, directory serving in place of the
+allowlist, `nosniff` dropped, and a JPEG renamed `.png`. Each one is a red run.
+
 ## American English guard, September 19, 2026
 
 `american_english_check.py` reads every text file in the tree against an

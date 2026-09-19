@@ -213,6 +213,20 @@ PAGE_HEADERS = {
     "Permissions-Policy": "camera=(), microphone=(), geolocation=(), usb=(), payment=()",
 }
 
+# Sibling files the page is allowed to pull from the same directory. Named
+# explicitly rather than serving the directory, because a static server that
+# will hand over "whatever is next to the page" is one path-traversal bug away
+# from serving the rest of the disk. The page needs exactly these, and
+# test_rededge.py reads the page's own markup to hold the two lists to each
+# other: an asset the page names that is missing here is a red run.
+STATIC_ALLOW = {
+    "app.js": "application/javascript; charset=utf-8",
+    "favicon.svg": "image/svg+xml",
+    "apple-touch-icon.png": "image/png",
+    "rededge-social.png": "image/png",
+}
+STATIC_HEADERS = {"X-Content-Type-Options": "nosniff"}
+
 
 def proxy_route(path):
     """The camera route a /cam/ request may be forwarded to, or None.
@@ -666,16 +680,8 @@ def make_handler(page_path, client):
             page_bytes = f.read()
         page_dir = os.path.dirname(os.path.abspath(page_path)) or "."
 
-    # Sibling files the page is allowed to pull from the same directory. Named
-    # explicitly rather than serving the directory, because a static server that
-    # will hand over "whatever is next to the page" is one path-traversal bug
-    # away from serving the rest of the disk. The page needs exactly these.
-    STATIC_ALLOW = {
-        "app.js": "application/javascript; charset=utf-8",
-        "favicon.svg": "image/svg+xml",
-        "rededge-social.png": "image/png",
-    }
-    STATIC_HEADERS = {"X-Content-Type-Options": "nosniff"}
+    # The page's sibling assets come from STATIC_ALLOW at module level, so the
+    # test suite can hold the list to the page's markup.
     # The proxy answers are the one place a cross-origin header belongs: they
     # exist so a browser can read camera JSON. The page and its assets are
     # same-origin documents and get no such grant.

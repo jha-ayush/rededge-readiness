@@ -13,6 +13,8 @@ import contextlib
 import io
 import json
 import os
+import re
+import struct
 import tempfile
 import threading
 import types
@@ -697,6 +699,114 @@ class LocalServeProxy(unittest.TestCase):
                 self.assertIn(b'src="app.js"', body)
                 js = urllib.request.urlopen(base + "/app.js", timeout=5).read()
                 self.assertIn(b"function evaluate", js)
+
+    SITE = "https://rededge-readiness.sudokodes.workers.dev/"
+
+    def _page_assets(self):
+        """Every sibling file the shipped page asks a browser for, read out
+        of the page's own markup: link hrefs (icons), script srcs, and the
+        image the og and twitter tags name by absolute URL. The canonical
+        link points at the site root, which is the page itself, and drops
+        out as an empty name. Anything left with a scheme is an off-site
+        request, which the page must never make; the caller asserts that."""
+        with open(rededge.DEFAULT_PAGE, encoding="utf-8") as f:
+            page = f.read()
+        found = re.findall(r'<link\b[^>]*\bhref="([^"]+)"', page)
+        found += re.findall(r'<script\b[^>]*\bsrc="([^"]+)"', page)
+        found += re.findall(r'<meta\b[^>]*\b(?:property|name)="(?:og|twitter):image"'
+                            r'[^>]*\bcontent="([^"]+)"', page)
+        names = set()
+        for value in found:
+            if value.startswith(self.SITE):
+                value = value[len(self.SITE):]
+            if value:
+                names.add(value)
+        return names
+
+    def _png_size(self, data):
+        self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n")
+        return struct.unpack(">II", data[16:24])
+
+    # The type an asset must be served as, by what the file is. Held apart
+    # from STATIC_ALLOW on purpose: checking the served type against the same
+    # dict that produced it would pass a wrong entry.
+    ASSET_TYPES = {".js": "application/javascript; charset=utf-8",
+                   ".svg": "image/svg+xml",
+                   ".png": "image/png"}
+
+    def test_every_asset_the_page_names_is_allowlisted_and_served(self):
+        """The serve allowlist and the page drifted once already: the page
+        gained a Home Screen icon and the local server did not know the name,
+        so the hosted demo showed the icon and a laptop serving the same page
+        answered 404 for it. This reads the assets out of the markup rather
+        than repeating the list here, so a new href fails the run until the
+        allowlist and the file beside the page both exist. The names are also
+        held to be relative: the page makes zero off-site requests, and the
+        Content Security Policy test says the same from the header side."""
+        names = self._page_assets()
+        self.assertIn("app.js", names)
+        self.assertIn("favicon.svg", names)
+        self.assertIn("apple-touch-icon.png", names)
+        self.assertIn("rededge-social.png", names)
+        for name in names:
+            with self.subTest(asset=name):
+                self.assertNotIn("://", name, "off-site asset: %s" % name)
+                self.assertNotIn("/", name, "asset outside the page dir: %s" % name)
+                self.assertIn(name, rededge.STATIC_ALLOW)
+                self.assertTrue(os.path.exists(
+                    os.path.join(os.path.dirname(rededge.DEFAULT_PAGE), name)), name)
+        with mock_server("go") as cam:
+            with self._bridge(cam, rededge.DEFAULT_PAGE) as base:
+                for name in names:
+                    with self.subTest(asset=name):
+                        ext = os.path.splitext(name)[1]
+                        self.assertIn(ext, self.ASSET_TYPES, "unknown asset kind")
+                        r = urllib.request.urlopen(base + "/" + name, timeout=5)
+                        self.assertEqual(r.status, 200)
+                        self.assertEqual(r.headers.get("Content-Type"),
+                                         self.ASSET_TYPES[ext])
+                        self.assertEqual(r.headers.get("X-Content-Type-Options"), "nosniff")
+                        self.assertIsNone(r.headers.get("Access-Control-Allow-Origin"))
+                        body = r.read()
+                        self.assertTrue(body, "%s served empty" % name)
+                        if ext == ".png":
+                            self._png_size(body)
+                        elif ext == ".svg":
+                            self.assertIn(b"<svg", body)
+                        else:
+                            self.assertIn(b"function evaluate", body)
+                # The allowlist is an allowlist: the hosted config files sit
+                # beside the page and are not page assets, so they do not come
+                # out of the server by name.
+                for name in ("_headers", "_redirects", "..%2F..%2Frededge.py"):
+                    with self.subTest(refused=name):
+                        try:
+                            urllib.request.urlopen(base + "/" + name, timeout=5)
+                            self.fail("%s was served" % name)
+                        except urllib.error.HTTPError as e:
+                            self.assertEqual(e.code, 404)
+
+    def test_icons_are_the_size_their_tags_claim(self):
+        """A Home Screen icon that is not 180 by 180 is scaled by iOS and
+        looks soft; a social card whose real size differs from the og tags
+        is cropped by the previewer. Both numbers live in the markup, so both
+        are read from there and held to the file bytes."""
+        with open(rededge.DEFAULT_PAGE, encoding="utf-8") as f:
+            page = f.read()
+        here = os.path.dirname(rededge.DEFAULT_PAGE)
+        m = re.search(r'<link\b[^>]*rel="apple-touch-icon"[^>]*\bsizes="(\d+)x(\d+)"'
+                      r'[^>]*\bhref="([^"]+)"', page)
+        self.assertIsNotNone(m, "apple-touch-icon link with sizes and href")
+        with open(os.path.join(here, m.group(3)), "rb") as f:
+            self.assertEqual(self._png_size(f.read()), (int(m.group(1)), int(m.group(2))))
+        self.assertEqual((int(m.group(1)), int(m.group(2))), (180, 180))
+        w = re.search(r'property="og:image:width" content="(\d+)"', page)
+        h = re.search(r'property="og:image:height" content="(\d+)"', page)
+        img = re.search(r'property="og:image" content="([^"]+)"', page)
+        self.assertTrue(w and h and img, "og:image tags")
+        self.assertTrue(img.group(1).startswith(self.SITE))
+        with open(os.path.join(here, img.group(1)[len(self.SITE):]), "rb") as f:
+            self.assertEqual(self._png_size(f.read()), (int(w.group(1)), int(h.group(1))))
 
     def test_head_answers_like_get_without_a_body(self):
         with mock_server("go") as cam:
