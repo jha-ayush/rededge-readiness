@@ -18,10 +18,16 @@ jobs:
     # image is part of what a green run proves. test_rededge.py holds this
     # line to an explicit release. To move: change the name, push, read the run.
     runs-on: ubuntu-24.04
+    # Every action is pinned to a commit, with the tag it was read from in the
+    # comment. A `@v5` runs whatever that tag points at on the day, which can
+    # change under a run with nothing in this history to say so; a commit
+    # cannot. test_rededge.py holds each line to this form and to the commit
+    # the tag named when it was read (October 11, 2026). To move an action:
+    # read the tag's commit from GitHub, change both, push, read the run.
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
 
@@ -44,7 +50,7 @@ jobs:
       # syntax error in the iPhone script or the web page ships undetected,
       # because the Python suite cannot see either of them. Node 24 is the
       # current LTS line; 20 left support in April 2026.
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "24"
 

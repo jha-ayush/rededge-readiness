@@ -4,6 +4,20 @@
 Notable changes to RedEdge Readiness. Entries record what changed and, where it
 matters, why, because the reason is usually the part worth keeping.
 
+## Every action is pinned to a commit, October 11, 2026
+
+The three actions the workflow uses were named by major tag (`checkout@v5`,
+`setup-python@v6`, `setup-node@v5`), and a tag runs whatever commit it
+points at on the day, which can change under a run with nothing in this
+history to say so. Each is now a 40-character commit with the tag it was
+read from in a trailing comment (`checkout` v7.0.1, `setup-python` v7.0.0,
+`setup-node` v7.0.0, the commits read from GitHub's tag objects that day
+and the same ones UAS SkyCheck pins), and a test in `test_rededge.py`
+holds every `uses:` line to that form and to a table of the commit each
+tag named, so neither half can be edited alone. To move an action: read
+the tag's commit from GitHub, change the line and the table, push, read
+the run.
+
 ## The runner image is named, October 11, 2026
 
 The workflow ran on `ubuntu-latest`, a label GitHub moves between Ubuntu

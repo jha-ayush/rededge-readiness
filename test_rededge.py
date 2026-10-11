@@ -842,6 +842,40 @@ class ContinuousIntegration(unittest.TestCase):
             self.assertRegex(value, r"^[\"']?(ubuntu|windows|macos)-\d+(\.\d+)?(-(arm|arm64|large|xlarge))?[\"']?$",
                              "%s:%d runs-on: %s floats; name the release" % (name, n, value))
 
+    # The commit each tag named when it was read from GitHub (October 11,
+    # 2026). A line may use only these, so a SHA cannot be edited by hand
+    # without this table changing beside it.
+    PINNED_ACTIONS = {
+        "actions/checkout": ("3d3c42e5aac5ba805825da76410c181273ba90b1", "v7.0.1"),
+        "actions/setup-python": ("5fda3b95a4ea91299a34e894583c3862153e4b97", "v7.0.0"),
+        "actions/setup-node": ("820762786026740c76f36085b0efc47a31fe5020", "v7.0.0"),
+    }
+
+    def test_every_action_is_pinned_to_a_commit_the_tag_named(self):
+        """`uses: actions/checkout@v5` runs whatever the tag points at on the
+        day; a tag moves under a run the way `ubuntu-latest` does. Every
+        `uses:` names a 40-hex commit with the tag it was read from in a
+        trailing comment, and the commit is the one PINNED_ACTIONS records
+        for that tag, so neither half can drift alone."""
+        here = os.path.dirname(os.path.abspath(__file__))
+        folder = os.path.join(here, ".github", "workflows")
+        form = re.compile(r"^(?P<action>[\w.-]+/[\w.-]+)@(?P<sha>[0-9a-f]{40})\s+#\s*(?P<tag>v\d+(?:\.\d+)*)$")
+        uses = []
+        for name in sorted(n for n in os.listdir(folder) if n.endswith((".yml", ".yaml"))):
+            with open(os.path.join(folder, name)) as f:
+                for n, line in enumerate(f, 1):
+                    m = re.match(r"^\s*-?\s*uses:\s*(.*?)\s*$", line.rstrip("\n"))
+                    if m:
+                        uses.append((name, n, m.group(1)))
+        self.assertTrue(uses, "no uses: in any workflow")
+        for name, n, value in uses:
+            m = form.match(value)
+            self.assertTrue(m, "%s:%d uses: %s is not <action>@<40-hex commit> # <tag>" % (name, n, value))
+            self.assertIn(m.group("action"), self.PINNED_ACTIONS, "%s:%d %s is not in PINNED_ACTIONS" % (name, n, value))
+            sha, tag = self.PINNED_ACTIONS[m.group("action")]
+            self.assertEqual((m.group("sha"), m.group("tag")), (sha, tag),
+                             "%s:%d %s does not match PINNED_ACTIONS" % (name, n, value))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
