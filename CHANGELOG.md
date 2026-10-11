@@ -4,6 +4,19 @@
 Notable changes to RedEdge Readiness. Entries record what changed and, where it
 matters, why, because the reason is usually the part worth keeping.
 
+## The runner image is named, October 11, 2026
+
+The workflow ran on `ubuntu-latest`, a label GitHub moves between Ubuntu
+releases on its own schedule; from October 19, 2026 it means Ubuntu 26.04,
+and no run of this tree has been on that image. A green run proves the
+platform it ran on as much as the code, so the job now names
+`ubuntu-24.04`, the image every green run to date has in fact used, and a
+test in `test_rededge.py` reads every `runs-on:` in the workflows and
+refuses a floating label, an expression or anything it cannot read as a
+release. Moving to a newer image is a commit, pushed, and proven by its
+run. Nothing about the tool changed. The same pin and the same rule went
+into UAS SkyCheck the same day.
+
 ## Home Screen icon, September 19, 2026
 
 The page now names a 180 by 180 `apple-touch-icon.png` beside the SVG

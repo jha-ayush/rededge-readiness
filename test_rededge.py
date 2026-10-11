@@ -818,5 +818,30 @@ class LocalServeProxy(unittest.TestCase):
                 self.assertEqual(r.read(), b"")
 
 
+class ContinuousIntegration(unittest.TestCase):
+    def test_every_job_names_the_runner_image_it_runs_on(self):
+        """The workflow ran on `ubuntu-latest`, a label GitHub moves between
+        Ubuntu releases on its own schedule (to 26.04 from October 19, 2026).
+        No run of this tree has been on that image, and a green run proves
+        the image it ran on as much as the code. Every `runs-on:` names an
+        explicit release; a floating label, an expression or anything else
+        fails here with its line, so the move is a commit a run proves."""
+        here = os.path.dirname(os.path.abspath(__file__))
+        folder = os.path.join(here, ".github", "workflows")
+        files = sorted(n for n in os.listdir(folder) if n.endswith((".yml", ".yaml")))
+        self.assertTrue(files, "no workflow files")
+        jobs = []
+        for name in files:
+            with open(os.path.join(folder, name)) as f:
+                for n, line in enumerate(f, 1):
+                    m = re.match(r"^\s*runs-on:\s*(.*?)\s*(?:#.*)?$", line.rstrip("\n"))
+                    if m:
+                        jobs.append((name, n, m.group(1)))
+        self.assertTrue(jobs, "no runs-on in any workflow")
+        for name, n, value in jobs:
+            self.assertRegex(value, r"^[\"']?(ubuntu|windows|macos)-\d+(\.\d+)?(-(arm|arm64|large|xlarge))?[\"']?$",
+                             "%s:%d runs-on: %s floats; name the release" % (name, n, value))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

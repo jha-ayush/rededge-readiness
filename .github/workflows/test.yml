@@ -13,7 +13,11 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Named, not floating. GitHub moves `ubuntu-latest` to Ubuntu 26.04 from
+    # October 19, 2026, and no run of this tree has been on that image; the
+    # image is part of what a green run proves. test_rededge.py holds this
+    # line to an explicit release. To move: change the name, push, read the run.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
 
